@@ -1,6 +1,9 @@
 export struct FolderPairRow {
     pair-index: int,
     state: string,
+    name-a: string,
+    name-b: string,
+    common: string,
     path-a: string,
     path-b: string,
     metrics-a: string,
@@ -11,11 +14,17 @@ export struct FolderPairRow {
 export struct FolderDetailRow {
     path-a: string,
     path-b: string,
+    display-a: string,
+    display-b: string,
 }
 
 export global FolderUi {
     in-out property <[FolderPairRow]> pairs: [];
     in-out property <[FolderDetailRow]> details: [];
+    in-out property <FolderPairRow> selected;
+    in-out property <string> result-count;
+    in-out property <int> result-filter: 0;
+    in-out property <bool> has-report: false;
     in-out property <string> status;
     in-out property <string> warnings;
     in-out property <string> detail-status;

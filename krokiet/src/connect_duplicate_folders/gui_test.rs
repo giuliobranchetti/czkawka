@@ -71,8 +71,9 @@ fn folder_scan_updates_real_slint_models_and_blocks_deletion() {
                 assert!(row.metrics_a.contains("66.66") || row.metrics_b.contains("66.66"));
                 let reference = crate::flk!("folders_reference");
                 assert!(row.path_a.contains(&reference) || row.path_b.contains(&reference));
-                ui.set_selected_pair(0);
-                app.global::<Callabler>().invoke_folders_show_details(0, 0);
+                assert_eq!(ui.get_selected_pair(), row.pair_index);
+                assert_eq!(ui.get_selected().state, row.state);
+                assert!(row.state == crate::flk!("folders_contained_a") || row.state == crate::flk!("folders_contained_b"));
                 phase_copy.set(1);
             }
             1 if !ui.get_detail_loading() => {
@@ -83,9 +84,26 @@ fn folder_scan_updates_real_slint_models_and_blocks_deletion() {
                 assert_eq!(collected.folders_minimum_coverage, 90);
                 assert_eq!(collected.folders_minimum_files, 1);
                 assert!(!collected.folders_trust_cache);
+                let detail = ui.get_details().row_data(0).unwrap();
+                assert!(detail.display_a.starts_with("A: "));
+                assert!(detail.display_b.starts_with("B: "));
+                assert!(std::path::Path::new(detail.path_a.as_str()).is_absolute());
+                app.global::<Callabler>().invoke_folders_filter_results(1);
+                assert_eq!(ui.get_pairs().row_count(), 0);
+                assert_eq!(ui.get_selected_pair(), -1);
+                assert_eq!(ui.get_details().row_count(), 0);
+                assert!(!ui.get_detail_loading());
+                app.global::<Callabler>().invoke_folders_filter_results(2);
+                assert_eq!(ui.get_pairs().row_count(), 1);
+                assert_eq!(ui.get_selected_pair(), 0);
+                app.global::<Callabler>().invoke_folders_show_details(0, 1);
+                app.global::<Callabler>().invoke_folders_show_details(0, 2);
+                app.global::<Callabler>().invoke_folders_show_details(0, 0);
                 phase_copy.set(2);
             }
-            2 => {
+            2 if !ui.get_detail_loading() => {
+                assert_eq!(ui.get_details().row_count(), 2);
+                assert_eq!(ui.get_detail_kind(), 0);
                 if let Ok(path) = std::env::var("CZKAWKA_FOLDER_SCREENSHOT") {
                     let snapshot = app.window().take_snapshot().unwrap();
                     image::save_buffer(path, snapshot.as_bytes(), snapshot.width(), snapshot.height(), image::ColorType::Rgba8).unwrap();

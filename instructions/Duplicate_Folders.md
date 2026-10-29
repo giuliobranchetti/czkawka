@@ -26,9 +26,26 @@ visible in comparisons, including when every included directory is a reference.
 The new tool has no deletion, trash, move, rename, hard-link or symlink actions.
 Backend action handlers also reject this tool, including stale popup callbacks.
 
-**Show differences** loads common path pairs or the files exclusive to either
-side. **Open A/B** opens a directory in the system file manager. Path buttons in
-the detail list open the corresponding file in its associated application.
+The compact result list separates **Identical folders**, **One folder fully
+present in the other**, and **Partial matches**. A fully contained result means
+that all file contents from one side occur in the other, not that the paths have
+a parent/child relationship. For example, an album with one photo can be fully
+present in a 5,607-file archive; this does not make the two folders identical.
+The result filter changes the displayed pairs without rescanning. Exact matches
+come first, then fully contained pairs, then partial matches. Within each category,
+pairs with more shared logical bytes come first. Result counts show visible and
+total pairs; category counts describe the full scan.
+
+Selecting a pair immediately displays both folder paths, shared file counts,
+coverage and exclusive counts. The first visible pair is selected automatically.
+The **Common files / Only in A / Only in B** selector shows the corresponding
+files for that pair. Paths in this list are relative to the displayed folder A or B;
+buttons still open the original absolute paths. Windows extended path prefixes
+are hidden in folder labels. **Open A/B** opens a directory in the system file
+manager. File buttons open the corresponding file in its associated application.
+**Scan options** expands the coverage threshold, folder size/file limits and
+cache setting. The threshold applies to the folder with fewer files; use
+**100% identical only** to require complete equality on both sides.
 **Export JSON** saves the report, absolute paths, per-folder totals, reference and
 completeness flags, file hashes, matched counts and bytes, and any limitations.
 Folder/file indices in the report refer to its `folders` and `files` arrays;
@@ -53,7 +70,7 @@ Folder/file indices in the report refer to its `folders` and `files` arrays;
   for folders instead. These folder limits apply to each side of a pair.
 - A partial pair passes the coverage threshold if either directional **file
   count** coverage meets it. For 245 matches in folders with 250 and 245 files,
-  the result is 98% and 100%. Both count and byte denominators are displayed.
+  the result is 98% and 100%. Both file-count denominators and folder sizes are displayed.
   **100% identical only** additionally requires equal complete multisets.
 - Percentages are truncated to two decimal places. A partial 99.999% match is
   never displayed as 100%; the exact/partial classification uses integer counts.

@@ -1,13 +1,25 @@
 export global Translations {
+    in-out property <string> folders_rules_text: "Names and directory structure are ignored. Exclusions and extension filters apply; individual file-size limits do not. Empty folders and parent/child pairs are omitted.";
+    in-out property <string> folders_no_matches_text: "No pairs to show. Change the result filter or scan options.";
+    in-out property <string> folders_no_files_text: "No files in this view.";
+    in-out property <string> folders_loading_details_text: "Loading files...";
+    in-out property <string> folders_files_heading_text: "Files in the selected pair";
+    in-out property <string> folders_initial_text: "Add the folders to scan below, then click Scan.";
+    in-out property <string> folders_choose_pair_text: "Select a pair to compare its folders.";
+    in-out property <string> folders_filter_partial_text: "Partial matches";
+    in-out property <string> folders_filter_contained_text: "One folder fully present in the other";
+    in-out property <string> folders_filter_exact_text: "Identical folders";
+    in-out property <string> folders_filter_all_text: "All matches";
+    in-out property <string> folders_threshold_help_text: "The threshold applies to the folder with fewer files. A small folder entirely present in a much larger one also qualifies. Exact matches require all files on both sides.";
+    in-out property <string> folders_advanced_text: "Scan options";
     in-out property <string> tool_duplicate_folders_text: "Duplicate Folders";
-    in-out property <string> folders_scope_text: "Read-only content comparison. All discovered directories are candidates; recursive mode ignores names and structure. Exclusions and extension filters apply; file-size filters do not. Empty folders and ancestor/descendant pairs are omitted.";
+    in-out property <string> folders_scope_text: "Compare file contents, even when names differ. This tool does not delete or move files.";
     in-out property <string> folders_exact_text: "100% identical only";
-    in-out property <string> folders_coverage_text: "Minimum coverage on either side (%)";
+    in-out property <string> folders_coverage_text: "Minimum shared files in the smaller folder (%)";
     in-out property <string> folders_minimum_files_text: "Minimum files per folder";
     in-out property <string> folders_minimum_bytes_text: "Minimum bytes per folder";
     in-out property <string> folders_recursive_text: "Include subfolders";
     in-out property <string> folders_cache_text: "Reuse hashes (trusted timestamps only)";
-    in-out property <string> folders_details_text: "Show differences";
     in-out property <string> folders_open_a_text: "Open A";
     in-out property <string> folders_open_b_text: "Open B";
     in-out property <string> folders_common_text: "Common files";

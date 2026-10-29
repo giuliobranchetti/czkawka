@@ -5,16 +5,18 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use czkawka_core::common::config_cache_path::get_config_cache_path;
-use czkawka_core::tools::duplicate_folders::{FolderPair, FolderProgress, FolderReport, FolderScanOptions, FolderScanPhase, FolderSummary, scan_folders};
-use humansize::{BINARY, format_size};
+use czkawka_core::tools::duplicate_folders::{FolderProgress, FolderScanOptions, FolderScanPhase, scan_folders};
 use log::{debug, error};
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
 
+use self::presentation::{category_summary, display_path, pair_row, show_results};
 use crate::common::check_if_there_are_any_included_folders;
 use crate::connect_rfd::{hide_file_dialog_overlay, show_file_dialog_overlay};
 use crate::settings::collect_settings;
 use crate::shared_models::SharedModels;
 use crate::{Callabler, FolderDetailRow, FolderPairRow, FolderUi, GuiState, MainWindow, ProgressToSend, Settings, flk};
+
+mod presentation;
 
 const DETAIL_LIMIT: usize = 20_000;
 
@@ -62,6 +64,11 @@ pub(crate) fn start_scan(app: &MainWindow, stop: Arc<AtomicBool>, shared: Arc<Mu
     ui.set_pairs(ModelRc::default());
     ui.set_details(ModelRc::default());
     ui.set_selected_pair(-1);
+    ui.set_selected(FolderPairRow::default());
+    ui.set_has_report(false);
+    ui.set_result_count("".into());
+    ui.set_result_filter(0);
+    ui.set_detail_kind(0);
     ui.set_detail_loading(false);
     ui.set_detail_status("".into());
     ui.set_warnings("".into());
@@ -96,7 +103,6 @@ pub(crate) fn start_scan(app: &MainWindow, stop: Arc<AtomicBool>, shared: Arc<Mu
         shared.lock().expect("Folder scan state mutex poisoned").duplicate_folders_report = Some(Arc::clone(&report));
         let seconds = format!("{:.2}", started.elapsed().as_secs_f64());
         if let Err(error) = weak.upgrade_in_event_loop(move |app| {
-            let rows = report.pairs.iter().enumerate().filter_map(|(idx, pair)| pair_row(&report, pair, idx)).collect::<Vec<_>>();
             let state = if report.cancelled {
                 flk!("folders_cancelled")
             } else if report.truncated {
@@ -114,12 +120,13 @@ pub(crate) fn start_scan(app: &MainWindow, stop: Arc<AtomicBool>, shared: Arc<Mu
                 state = state
             );
             let ui = app.global::<FolderUi>();
-            ui.set_pairs(ModelRc::new(VecModel::from(rows)));
             ui.set_warnings(report.warnings.iter().take(200).cloned().collect::<Vec<_>>().join("\n").into());
-            ui.set_status(summary.clone().into());
+            ui.set_status(if report.cancelled { flk!("folders_cancelled") } else { category_summary(&report) }.into());
+            ui.set_has_report(true);
             ui.set_working(false);
             app.global::<GuiState>().set_info_text(report.warnings.join("\n").into());
             app.invoke_scan_ended(summary.into());
+            show_results(&app, &report, 0);
         }) {
             debug!("Folder result receiver closed: {error}");
         }
@@ -147,53 +154,26 @@ fn progress_data(progress: FolderProgress) -> ProgressToSend {
     }
 }
 
-fn coverage(matched: u64, total: u64) -> String {
-    if total == 0 {
-        return "0.00".into();
-    }
-    let hundredths = u128::from(matched) * 10_000 / u128::from(total);
-    format!("{}.{:02}", hundredths / 100, hundredths % 100)
-}
-
-fn metrics(side: &str, folder: &FolderSummary, pair: &FolderPair) -> String {
-    flk!(
-        "folders_metrics",
-        side = side,
-        matched = pair.matched_count,
-        files = folder.file_count,
-        count_percent = coverage(pair.matched_count as u64, folder.file_count as u64),
-        matched_bytes = format_size(pair.matched_bytes, BINARY),
-        bytes = format_size(folder.total_bytes, BINARY),
-        byte_percent = coverage(pair.matched_bytes, folder.total_bytes),
-        exclusive = folder.file_count.saturating_sub(pair.matched_count)
-    )
-}
-
-fn pair_row(report: &FolderReport, pair: &FolderPair, idx: usize) -> Option<FolderPairRow> {
-    let (a, b) = (report.folders.get(pair.folder_a)?, report.folders.get(pair.folder_b)?);
-    let reference = flk!("folders_reference");
-    let path = |folder: &FolderSummary| {
-        if folder.reference {
-            format!("[{reference}] {}", folder.path.display())
-        } else {
-            folder.path.display().to_string()
-        }
-    };
-    Some(FolderPairRow {
-        pair_index: idx as i32,
-        state: if pair.exact { flk!("folders_exact_result") } else { flk!("folders_partial_result") }.into(),
-        path_a: path(a).into(),
-        path_b: path(b).into(),
-        metrics_a: metrics("A", a, pair).into(),
-        metrics_b: metrics("B", b, pair).into(),
-        logical_bytes: flk!("folders_logical_bytes", bytes = format_size(pair.potential_duplicate_bytes, BINARY)).into(),
-    })
-}
-
 pub(crate) fn connect(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
     connect_details(app, shared);
+    connect_filter(app, shared);
     connect_open(app, shared);
     connect_export(app, shared);
+}
+
+fn connect_filter(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
+    let weak = app.as_weak();
+    let shared = Arc::clone(shared);
+    app.global::<Callabler>().on_folders_filter_results(move |filter| {
+        let app = weak.upgrade().expect("Folder filter callback requires a live window");
+        if app.get_scanning() {
+            return;
+        }
+        let report = shared.lock().expect("Folder scan state mutex poisoned").duplicate_folders_report.clone();
+        if let Some(report) = report {
+            show_results(&app, &report, filter);
+        }
+    });
 }
 
 fn connect_details(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
@@ -213,7 +193,13 @@ fn connect_details(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
         let pair = report.pairs.get(idx as usize).expect("Folder pair index must come from the current result model").clone();
         let weak = weak.clone();
         let shared = Arc::clone(&shared);
-        app.global::<FolderUi>().set_detail_loading(true);
+        let ui = app.global::<FolderUi>();
+        ui.set_selected_pair(idx);
+        ui.set_selected(pair_row(&report, &pair, idx as usize));
+        ui.set_detail_kind(kind);
+        ui.set_details(ModelRc::default());
+        ui.set_detail_status("".into());
+        ui.set_detail_loading(true);
         thread::spawn(move || {
             let diff = report.differences(&pair);
             let paths: Vec<_> = match kind {
@@ -227,9 +213,22 @@ fn connect_details(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
                 if shared.lock().expect("Folder scan state mutex poisoned").duplicate_folders_generation != generation {
                     return;
                 }
+                let ui = app.global::<FolderUi>();
+                if ui.get_selected_pair() != idx || ui.get_detail_kind() != kind {
+                    return;
+                }
+                let relative_path = |path: &std::path::Path, folder_idx: usize, side: &str| {
+                    if path.as_os_str().is_empty() {
+                        String::new()
+                    } else {
+                        format!("{side}: {}", display_path(path.strip_prefix(&report.folders[folder_idx].path).unwrap_or(path)))
+                    }
+                };
                 let rows = paths
                     .into_iter()
                     .map(|(a, b)| FolderDetailRow {
+                        display_a: relative_path(&a, pair.folder_a, "A").into(),
+                        display_b: relative_path(&b, pair.folder_b, "B").into(),
                         path_a: a.to_string_lossy().as_ref().into(),
                         path_b: b.to_string_lossy().as_ref().into(),
                     })
@@ -314,7 +313,7 @@ fn connect_export(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
 mod tests {
     use czkawka_core::tools::duplicate_folders::{FolderProgress, FolderScanPhase};
 
-    use super::{coverage, progress_data};
+    use super::progress_data;
 
     #[test]
     fn overall_progress_accounts_for_completed_stages() {
@@ -338,13 +337,5 @@ mod tests {
         });
         assert_eq!(progress.current_progress, -1);
         assert_eq!(progress.all_progress, 0);
-    }
-
-    #[test]
-    fn partial_percentages_never_round_up_to_exact() {
-        assert_eq!(coverage(999_999, 1_000_000), "99.99");
-        assert_eq!(coverage(245, 250), "98.00");
-        assert_eq!(coverage(245, 245), "100.00");
-        assert_eq!(coverage(0, 0), "0.00");
     }
 }

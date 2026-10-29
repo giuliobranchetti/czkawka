@@ -113,6 +113,19 @@ fn translate_items(app: &MainWindow) {
     translation.set_ref_text(flk!("ref").into());
     translation.set_path_text(flk!("path").into());
     translation.set_tool_duplicate_folders_text(flk!("tool_duplicate_folders").into());
+    translation.set_folders_advanced_text(flk!("folders_advanced").into());
+    translation.set_folders_threshold_help_text(flk!("folders_threshold_help").into());
+    translation.set_folders_filter_all_text(flk!("folders_filter_all").into());
+    translation.set_folders_filter_exact_text(flk!("folders_filter_exact").into());
+    translation.set_folders_filter_contained_text(flk!("folders_filter_contained").into());
+    translation.set_folders_filter_partial_text(flk!("folders_filter_partial").into());
+    translation.set_folders_choose_pair_text(flk!("folders_choose_pair").into());
+    translation.set_folders_initial_text(flk!("folders_initial").into());
+    translation.set_folders_files_heading_text(flk!("folders_files_heading").into());
+    translation.set_folders_loading_details_text(flk!("folders_loading_details").into());
+    translation.set_folders_no_files_text(flk!("folders_no_files").into());
+    translation.set_folders_no_matches_text(flk!("folders_no_matches").into());
+    translation.set_folders_rules_text(flk!("folders_rules").into());
     translation.set_folders_scope_text(flk!("folders_scope").into());
     translation.set_folders_exact_text(flk!("folders_exact").into());
     translation.set_folders_coverage_text(flk!("folders_coverage").into());
@@ -120,7 +133,6 @@ fn translate_items(app: &MainWindow) {
     translation.set_folders_minimum_bytes_text(flk!("folders_minimum_bytes").into());
     translation.set_folders_recursive_text(flk!("folders_recursive").into());
     translation.set_folders_cache_text(flk!("folders_cache").into());
-    translation.set_folders_details_text(flk!("folders_details").into());
     translation.set_folders_open_a_text(flk!("folders_open_a").into());
     translation.set_folders_open_b_text(flk!("folders_open_b").into());
     translation.set_folders_common_text(flk!("folders_common").into());
