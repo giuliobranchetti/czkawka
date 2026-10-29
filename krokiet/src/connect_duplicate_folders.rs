@@ -5,7 +5,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use czkawka_core::common::config_cache_path::get_config_cache_path;
-use czkawka_core::tools::duplicate_folders::{FolderPair, FolderReport, FolderScanOptions, FolderScanPhase, FolderSummary, scan_folders};
+use czkawka_core::tools::duplicate_folders::{FolderPair, FolderProgress, FolderReport, FolderScanOptions, FolderScanPhase, FolderSummary, scan_folders};
 use humansize::{BINARY, format_size};
 use log::{debug, error};
 use slint::{ComponentHandle, ModelRc, VecModel, Weak};
@@ -67,35 +67,27 @@ pub(crate) fn start_scan(app: &MainWindow, stop: Arc<AtomicBool>, shared: Arc<Mu
     ui.set_warnings("".into());
     ui.set_working(true);
     ui.set_status(flk!("folders_collecting").into());
+    app.set_progress_datas(ProgressToSend {
+        all_progress: 0,
+        current_progress: -1,
+        current_progress_size: -1,
+        step_name: flk!("folders_collecting").into(),
+    });
     app.set_scanning(true);
     app.global::<GuiState>().set_info_text("".into());
     let weak = app.as_weak();
     thread::spawn(move || {
         let started = Instant::now();
-        let last = Mutex::new(Instant::now());
+        let last = Mutex::new((Instant::now(), FolderScanPhase::Collecting, 0));
         let report = scan_folders(&options, &stop, |progress| {
             let mut last = last.lock().expect("Folder progress clock mutex poisoned");
-            if last.elapsed() < Duration::from_millis(100) {
+            if last.1 == progress.phase && (progress.completed < last.2 || last.0.elapsed() < Duration::from_millis(100)) {
                 return;
             }
-            *last = Instant::now();
-            let name = match progress.phase {
-                FolderScanPhase::Collecting => flk!("folders_collecting"),
-                FolderScanPhase::Hashing => flk!("folders_hashing"),
-                FolderScanPhase::Comparing => flk!("folders_comparing"),
-            };
-            let percent = if progress.total == 0 {
-                -1
-            } else {
-                ((progress.completed as u128 * 100) / progress.total as u128) as i32
-            };
+            *last = (Instant::now(), progress.phase, progress.completed);
+            let data = progress_data(progress);
             if let Err(error) = weak.upgrade_in_event_loop(move |app| {
-                app.set_progress_datas(ProgressToSend {
-                    all_progress: percent.max(0),
-                    current_progress: percent,
-                    current_progress_size: -1,
-                    step_name: name.into(),
-                });
+                app.set_progress_datas(data);
             }) {
                 debug!("Folder progress receiver closed: {error}");
             }
@@ -132,6 +124,27 @@ pub(crate) fn start_scan(app: &MainWindow, stop: Arc<AtomicBool>, shared: Arc<Mu
             debug!("Folder result receiver closed: {error}");
         }
     });
+}
+
+fn progress_data(progress: FolderProgress) -> ProgressToSend {
+    let (stage, name) = match progress.phase {
+        FolderScanPhase::Collecting => (0, flk!("folders_collecting")),
+        FolderScanPhase::PreHashing => (1, flk!("folders_prehashing")),
+        FolderScanPhase::Hashing => (2, flk!("folders_hashing")),
+        FolderScanPhase::Verifying => (3, flk!("folders_verifying")),
+        FolderScanPhase::Comparing => (4, flk!("folders_comparing")),
+    };
+    let percent = if progress.total == 0 {
+        -1
+    } else {
+        ((progress.completed as u128 * 100) / progress.total as u128).min(100) as i32
+    };
+    ProgressToSend {
+        all_progress: stage * 20 + percent.max(0) / 5,
+        current_progress: percent,
+        current_progress_size: -1,
+        step_name: name.into(),
+    }
 }
 
 fn coverage(matched: u64, total: u64) -> String {
@@ -299,7 +312,33 @@ fn connect_export(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
 
 #[cfg(test)]
 mod tests {
-    use super::coverage;
+    use czkawka_core::tools::duplicate_folders::{FolderProgress, FolderScanPhase};
+
+    use super::{coverage, progress_data};
+
+    #[test]
+    fn overall_progress_accounts_for_completed_stages() {
+        let progress = progress_data(FolderProgress {
+            phase: FolderScanPhase::Hashing,
+            completed: 2,
+            total: 100,
+        });
+        assert_eq!(progress.current_progress, 2);
+        assert_eq!(progress.all_progress, 40);
+        let progress = progress_data(FolderProgress {
+            phase: FolderScanPhase::Comparing,
+            completed: 100,
+            total: 100,
+        });
+        assert_eq!(progress.all_progress, 100);
+        let progress = progress_data(FolderProgress {
+            phase: FolderScanPhase::Collecting,
+            completed: 10,
+            total: 0,
+        });
+        assert_eq!(progress.current_progress, -1);
+        assert_eq!(progress.all_progress, 0);
+    }
 
     #[test]
     fn partial_percentages_never_round_up_to_exact() {

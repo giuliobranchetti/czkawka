@@ -520,6 +520,7 @@ folders_truncated = Risultati limitati; restringere la scansione
 folders_cancelled = Scansione annullata; nessuna coppia mostrata
 folders_collecting = Raccolta dei contenuti delle cartelle
 folders_hashing = Calcolo degli hash dei file
+folders_prehashing = Preselezione dei file con hash parziali
 folders_comparing = Confronto dei contenuti delle cartelle
 folders_detail_count = { $shown } / { $total } percorsi visualizzati
 folders_no_report = Eseguire prima una scansione delle cartelle
@@ -527,3 +528,5 @@ folders_export_saved = Rapporto delle cartelle salvato in { $path }
 folders_export_error = Impossibile esportare il rapporto delle cartelle: { $error }
 folders_open_error = Impossibile aprire il percorso: { $error }
 folders_invalid_input = Inserire una copertura tra 0 e 100 e limiti delle cartelle espressi con numeri interi non negativi.
+
+folders_verifying = Verifica delle modifiche a file e cartelle

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use super::{FolderFile, FolderScanOptions};
 use crate::common::model::HashType;
 use crate::flc;
-use crate::tools::duplicate::{DuplicateEntry, THREAD_BUFFER_SIZE, hash_calculation};
+use crate::tools::duplicate::{DuplicateEntry, PREHASHING_BUFFER_SIZE, THREAD_BUFFER, hash_calculation, hash_calculation_limit};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(super) struct Stamp {
@@ -64,7 +64,15 @@ pub(super) fn is_link(metadata: &Metadata) -> bool {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct CachedHash {
     stamp: Stamp,
-    pub hash: String,
+    pub hash: Option<String>,
+    #[serde(default)]
+    pub prehash: Option<String>,
+}
+
+pub(super) struct PreparedHash {
+    pub entry: CachedHash,
+    pub cache_hit: bool,
+    pub sampled: bool,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -126,29 +134,71 @@ pub(super) fn save(options: &FolderScanOptions, entries: &BTreeMap<PathBuf, Cach
     }
 }
 
-pub(super) fn hash_file(file: &FolderFile, cached: Option<&CachedHash>, stop: &Arc<AtomicBool>, bytes: &Arc<AtomicU64>) -> Result<Option<(CachedHash, bool)>, String> {
+fn valid_digest(hash: &str) -> bool {
+    hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+pub(super) fn prepare(file: &FolderFile, original: &Stamp, cached: Option<&CachedHash>, bytes: &Arc<AtomicU64>) -> Result<Option<PreparedHash>, String> {
+    let cached = cached.filter(|entry| {
+        !original.identity.is_empty() && &entry.stamp == original && entry.hash.as_deref().is_none_or(valid_digest) && entry.prehash.as_deref().is_none_or(valid_digest)
+    });
+    let mut entry = cached.cloned().unwrap_or_else(|| CachedHash {
+        stamp: original.clone(),
+        hash: None,
+        prehash: None,
+    });
+    if entry.prehash.is_some() {
+        return Ok(Some(PreparedHash {
+            entry,
+            cache_hit: true,
+            sampled: false,
+        }));
+    }
+    let input = DuplicateEntry {
+        path: file.path.clone(),
+        size: file.size,
+        ..Default::default()
+    };
+    let prehash = THREAD_BUFFER.with_borrow_mut(|buffer| hash_calculation_limit(buffer, &input, HashType::Blake3, PREHASHING_BUFFER_SIZE, bytes))?;
+    if file.size <= 2 * PREHASHING_BUFFER_SIZE {
+        let after = regular_metadata(&file.path)?;
+        if !after.is_file() || &stamp(&file.path, &after)? != original {
+            return Err(flc!("core_df_hash_changed", path = file.path.to_string_lossy()));
+        }
+        entry.hash = Some(prehash.clone());
+    }
+    entry.prehash = Some(prehash);
+    Ok(Some(PreparedHash {
+        entry,
+        cache_hit: cached.is_some(),
+        sampled: true,
+    }))
+}
+
+pub(super) fn complete(file: &FolderFile, prepared: &CachedHash, stop: &Arc<AtomicBool>, bytes: &Arc<AtomicU64>) -> Result<Option<CachedHash>, String> {
     let before = regular_metadata(&file.path)?;
     if !before.is_file() || before.len() != file.size {
         return Err(flc!("core_df_changed", path = file.path.to_string_lossy()));
     }
     let before_stamp = stamp(&file.path, &before)?;
-    if let Some(entry) =
-        cached.filter(|entry| !before_stamp.identity.is_empty() && entry.stamp == before_stamp && entry.hash.len() == 64 && entry.hash.bytes().all(|byte| byte.is_ascii_hexdigit()))
-    {
-        return Ok(Some((entry.clone(), true)));
+    if before_stamp != prepared.stamp {
+        return Err(flc!("core_df_changed", path = file.path.to_string_lossy()));
     }
     let entry = DuplicateEntry {
         path: file.path.clone(),
         size: file.size,
         ..Default::default()
     };
-    let mut buffer = vec![0; THREAD_BUFFER_SIZE];
-    let Some(hash) = hash_calculation(&mut buffer, &entry, HashType::Blake3, bytes, stop)? else {
+    let Some(hash) = THREAD_BUFFER.with_borrow_mut(|buffer| hash_calculation(buffer, &entry, HashType::Blake3, bytes, stop))? else {
         return Ok(None);
     };
     let after = regular_metadata(&file.path)?;
     if !after.is_file() || stamp(&file.path, &after)? != before_stamp {
         return Err(flc!("core_df_hash_changed", path = file.path.to_string_lossy()));
     }
-    Ok(Some((CachedHash { stamp: before_stamp, hash }, false)))
+    Ok(Some(CachedHash {
+        stamp: before_stamp,
+        hash: Some(hash),
+        prehash: prepared.prehash.clone(),
+    }))
 }

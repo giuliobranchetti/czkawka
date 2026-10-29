@@ -3,22 +3,19 @@
 //! ancestor/descendant pairs and empty directories are never reported as duplicates.
 mod cache;
 mod compare;
+mod hashing;
 mod inventory;
 mod report;
 #[cfg(test)]
 mod tests;
 
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use self::cache::{CachedHash, hash_file};
 use self::inventory::Inventory;
-use crate::flc;
 
 /// Input filters define the compared view; exactness only applies to that view.
 #[derive(Debug, Clone)]
@@ -41,6 +38,7 @@ pub struct FolderScanOptions {
     pub trust_cache: bool,
     pub cache_path: Option<PathBuf>,
     pub maximum_pairs: usize,
+    /// Limit partial-search posting visits; exact signatures are bounded by maximum_pairs.
     pub maximum_candidate_visits: usize,
 }
 
@@ -67,10 +65,12 @@ impl Default for FolderScanOptions {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FolderScanPhase {
     Collecting,
+    PreHashing,
     Hashing,
+    Verifying,
     Comparing,
 }
 
@@ -121,6 +121,10 @@ pub struct FolderReport {
     pub cancelled: bool,
     pub truncated: bool,
     pub hashes_computed: usize,
+    #[serde(default)]
+    pub prehashes_computed: usize,
+    #[serde(default)]
+    pub bytes_read: u64,
     pub cache_hits: usize,
     pub candidate_visits: usize,
 }
@@ -147,74 +151,9 @@ pub fn scan_folders(options: &FolderScanOptions, stop: &Arc<AtomicBool>, progres
         inventory.report.cancelled = true;
         return inventory.report;
     }
-    let mut size_counts = BTreeMap::<u64, usize>::new();
-    for file in &inventory.report.files {
-        *size_counts.entry(file.size).or_default() += 1;
-    }
-    let cached = cache::load(options, &mut inventory.report.warnings);
-    let processed = AtomicUsize::new(0);
-    let bytes_read = Arc::new(AtomicU64::new(0));
-    let total = inventory.report.files.len();
-    progress(FolderProgress {
-        phase: FolderScanPhase::Hashing,
-        completed: 0,
-        total,
-    });
-    let pool = match rayon::ThreadPoolBuilder::new().num_threads(options.threads.clamp(1, 32)).build() {
-        Ok(pool) => pool,
-        Err(error) => {
-            inventory.report.warnings.push(flc!("core_df_workers", reason = error.to_string()));
-            return inventory.report;
-        }
-    };
-    let results: Vec<_> = pool.install(|| {
-        inventory
-            .report
-            .files
-            .par_iter()
-            .map(|file| {
-                let result = if stop.load(Ordering::Relaxed) || size_counts.get(&file.size) == Some(&1) {
-                    Ok(None)
-                } else {
-                    hash_file(file, cached.get(&file.path), stop, &bytes_read)
-                };
-                let completed = processed.fetch_add(1, Ordering::Relaxed) + 1;
-                if completed.is_multiple_of(32) || completed == total {
-                    progress(FolderProgress {
-                        phase: FolderScanPhase::Hashing,
-                        completed,
-                        total,
-                    });
-                }
-                result
-            })
-            .collect()
-    });
-    let mut updated = BTreeMap::<PathBuf, CachedHash>::new();
-    for (idx, result) in results.into_iter().enumerate() {
-        match result {
-            Ok(Some((entry, hit))) => {
-                if let Some(file) = inventory.report.files.get_mut(idx) {
-                    file.hash = Some(entry.hash.clone());
-                    updated.insert(file.path.clone(), entry);
-                }
-                if hit {
-                    inventory.report.cache_hits += 1;
-                } else {
-                    inventory.report.hashes_computed += 1;
-                }
-            }
-            Ok(None) => {}
-            Err(error) => {
-                inventory.invalidate_file(idx);
-                inventory.report.warnings.push(error);
-            }
-        }
-    }
-    inventory.revalidate(options);
+    hashing::hash_inventory(&mut inventory, options, stop, &progress);
     inventory.report.cancelled = stop.load(Ordering::Relaxed);
     if !inventory.report.cancelled {
-        cache::save(options, &updated, &mut inventory.report.warnings);
         compare::find_pairs(&mut inventory.report, options, stop, &progress);
     }
     inventory.report.cancelled = stop.load(Ordering::Relaxed);

@@ -131,7 +131,12 @@ fn cancellation_during_hashing_and_comparing_discards_pairs() {
     for name in ["a/1", "b/2"] {
         write(temp.path(), name, b"same");
     }
-    for phase in [FolderScanPhase::Hashing, FolderScanPhase::Comparing] {
+    for phase in [
+        FolderScanPhase::PreHashing,
+        FolderScanPhase::Hashing,
+        FolderScanPhase::Verifying,
+        FolderScanPhase::Comparing,
+    ] {
         let stop = Arc::new(AtomicBool::new(false));
         let report = scan_folders(&options, &stop, |progress| {
             if std::mem::discriminant(&progress.phase) == std::mem::discriminant(&phase) {
@@ -285,4 +290,181 @@ fn hard_links_count_as_path_occurrences_without_claiming_physical_savings() {
     assert!(!pair.exact);
     assert_eq!(pair.matched_count, 1);
     assert_eq!(pair.potential_duplicate_bytes, 4);
+}
+
+#[test]
+fn partial_hashes_reject_large_files_without_reading_entire_contents() {
+    let (temp, options) = fixtures();
+    write(temp.path(), "a/one", &vec![b'a'; 65_536]);
+    write(temp.path(), "b/two", &vec![b'b'; 65_536]);
+    let report = scan(&options);
+    assert!(report.pairs.is_empty());
+    assert_eq!(report.prehashes_computed, 2);
+    assert_eq!(report.hashes_computed, 0);
+    assert_eq!(report.bytes_read, 16_384);
+    assert!(report.folders.iter().all(|folder| folder.complete));
+}
+
+#[test]
+fn identical_partial_hashes_do_not_prove_full_content_equality() {
+    let (temp, options) = fixtures();
+    let content = vec![b'a'; 65_536];
+    write(temp.path(), "a/one", &content);
+    write(temp.path(), "b/two", &content);
+    let mut changed = content;
+    *changed.get_mut(32_768).unwrap() = b'b';
+    write(temp.path(), "b/two", &changed);
+    let report = scan(&options);
+    assert!(report.pairs.is_empty());
+    assert_eq!(report.prehashes_computed, 2);
+    assert_eq!(report.hashes_computed, 2);
+    assert_eq!(report.bytes_read, 2 * (65_536 + 8192));
+}
+
+#[test]
+fn cached_partial_only_records_are_merged_with_changed_and_new_files() {
+    let (temp, mut options) = fixtures();
+    options.trust_cache = true;
+    options.cache_path = Some(temp.path().join("cache/hashes.json"));
+    let content = vec![b'a'; 65_536];
+    write(temp.path(), "a/one", &content);
+    write(temp.path(), "b/two", &vec![b'b'; 65_536]);
+    assert_eq!(scan(&options).hashes_computed, 0);
+    write(temp.path(), "b/two", &content);
+    let report = scan(&options);
+    assert!(report.pairs.first().unwrap().exact);
+    assert_eq!(report.cache_hits, 1);
+    assert_eq!(report.prehashes_computed, 1);
+    assert_eq!(report.hashes_computed, 2);
+    assert_eq!(report.bytes_read, 2 * 65_536 + 8192);
+    let repeat = scan(&options);
+    assert!(repeat.pairs.first().unwrap().exact);
+    assert_eq!(repeat.cache_hits, 2);
+    assert_eq!(repeat.bytes_read, 0);
+}
+
+#[test]
+fn legacy_full_hash_cache_gains_partial_signatures_without_full_reads() {
+    let (temp, mut options) = fixtures();
+    options.trust_cache = true;
+    let cache = temp.path().join("cache/hashes.json");
+    options.cache_path = Some(cache.clone());
+    for path in ["a/one", "b/two"] {
+        write(temp.path(), path, &vec![b'a'; 65_536]);
+    }
+    assert_eq!(scan(&options).hashes_computed, 2);
+    let mut json: serde_json::Value = serde_json::from_slice(&fs::read(&cache).unwrap()).unwrap();
+    for entry in json.get_mut("entries").unwrap().as_object_mut().unwrap().values_mut() {
+        entry.as_object_mut().unwrap().remove("prehash");
+    }
+    fs::write(&cache, serde_json::to_vec(&json).unwrap()).unwrap();
+    let report = scan(&options);
+    assert!(report.pairs.first().unwrap().exact);
+    assert_eq!(report.cache_hits, 2);
+    assert_eq!(report.hashes_computed, 0);
+    assert_eq!(report.bytes_read, 16_384);
+}
+
+#[test]
+fn nonrecursive_ancestor_roots_never_form_pairs() {
+    let (temp, mut options) = fixtures();
+    write(temp.path(), "a/one", b"same");
+    write(temp.path(), "a/sub/two", b"same");
+    options.included_paths = vec![temp.path().join("a/sub"), temp.path().join("a")];
+    options.recursive = false;
+    assert!(scan(&options).pairs.is_empty());
+    write(temp.path(), "a-b/three", b"same");
+    options.included_paths.push(temp.path().join("a-b"));
+    let report = scan(&options);
+    assert_eq!(report.pairs.len(), 2);
+    for pair in &report.pairs {
+        let a = &report.folders.get(pair.folder_a).unwrap().path;
+        let b = &report.folders.get(pair.folder_b).unwrap().path;
+        assert!(!a.starts_with(b) && !b.starts_with(a));
+    }
+}
+
+#[test]
+fn indexed_pairs_match_a_brute_force_multiset_oracle() {
+    use std::collections::BTreeMap;
+    let temp = TempDir::new().unwrap();
+    let mut sources = Vec::new();
+    for (index, directory) in ["a", "a/sub", "a-b", "b", "b/sub"].into_iter().enumerate() {
+        for file in 0..8 {
+            let content = (index * 3 + file * file) % 7;
+            let name = format!("{directory}/{file}.bin");
+            write(temp.path(), &name, &(content as u64).to_le_bytes());
+            sources.push((fs::canonicalize(temp.path().join(name)).unwrap(), content));
+        }
+    }
+    let included_paths: Vec<_> = ["", "a", "a/sub", "a-b", "b", "b/sub"].iter().map(|path| temp.path().join(path)).collect();
+    for recursive in [false, true] {
+        for exact_only in [false, true] {
+            let options = FolderScanOptions {
+                included_paths: included_paths.clone(),
+                recursive,
+                exact_only,
+                minimum_coverage: 60,
+                ..Default::default()
+            };
+            let report = scan(&options);
+            assert_eq!(report.folders.len(), 6);
+            let mut expected = BTreeMap::new();
+            let counts: Vec<_> = report
+                .folders
+                .iter()
+                .map(|folder| {
+                    let mut counts = BTreeMap::<usize, usize>::new();
+                    for (path, content) in &sources {
+                        if (recursive && path.starts_with(&folder.path)) || path.parent() == Some(folder.path.as_path()) {
+                            *counts.entry(*content).or_default() += 1;
+                        }
+                    }
+                    counts
+                })
+                .collect();
+            for (left, a) in report.folders.iter().enumerate() {
+                for (right, b) in report.folders.iter().enumerate().skip(left + 1) {
+                    if a.path.starts_with(&b.path) || b.path.starts_with(&a.path) {
+                        continue;
+                    }
+                    let ac = counts.get(left).unwrap();
+                    let bc = counts.get(right).unwrap();
+                    let matched: usize = ac.iter().map(|(content, count)| count.min(bc.get(content).unwrap_or(&0))).sum();
+                    let atotal = ac.values().sum::<usize>();
+                    let btotal = bc.values().sum::<usize>();
+                    let exact = matched == atotal && matched == btotal;
+                    if matched > 0 && matched * 100 >= atotal.min(btotal) * 60 && (!exact_only || exact) {
+                        expected.insert((left, right), (matched, matched as u64 * 8, exact));
+                    }
+                }
+            }
+            let actual: BTreeMap<_, _> = report
+                .pairs
+                .iter()
+                .map(|pair| ((pair.folder_a, pair.folder_b), (pair.matched_count, pair.matched_bytes, pair.exact)))
+                .collect();
+            assert_eq!(actual, expected);
+        }
+    }
+}
+
+#[test]
+fn exact_signature_groups_skip_partial_search_limits_and_bound_results() {
+    let temp = TempDir::new().unwrap();
+    for index in 0..50 {
+        write(temp.path(), &format!("{index:03}/one"), b"same");
+        write(temp.path(), &format!("{index:03}/two"), b"other");
+    }
+    let options = FolderScanOptions {
+        included_paths: vec![temp.path().to_path_buf()],
+        exact_only: true,
+        maximum_candidate_visits: 1,
+        maximum_pairs: 7,
+        ..Default::default()
+    };
+    let report = scan(&options);
+    assert!(report.truncated);
+    assert_eq!(report.pairs.len(), 7);
+    assert!(report.pairs.iter().all(|pair| pair.exact && pair.matched_count == 2));
 }

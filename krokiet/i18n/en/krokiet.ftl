@@ -535,6 +535,7 @@ folders_truncated = Results limited; refine the scan
 folders_cancelled = Scan cancelled; no pairs published
 folders_collecting = Collecting folder contents
 folders_hashing = Hashing file contents
+folders_prehashing = Filtering files by partial hashes
 folders_comparing = Comparing content multisets
 folders_detail_count = { $shown } / { $total } paths shown
 folders_no_report = Run a folder scan first
@@ -542,3 +543,5 @@ folders_export_saved = Folder report saved to { $path }
 folders_export_error = Cannot export folder report: { $error }
 folders_open_error = Cannot open path: { $error }
 folders_invalid_input = Enter coverage from 0 to 100 and nonnegative integer folder limits.
+
+folders_verifying = Verifying files and folders have not changed

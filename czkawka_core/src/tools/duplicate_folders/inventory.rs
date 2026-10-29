@@ -2,7 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+use rayon::prelude::*;
 
 use super::cache::{Stamp, is_link, regular_metadata, stamp};
 use super::{FolderFile, FolderProgress, FolderReport, FolderScanOptions, FolderScanPhase, FolderSummary};
@@ -23,6 +25,10 @@ struct Filters {
 }
 
 impl Inventory {
+    pub fn file_stamp(&self, file: &FolderFile) -> &Stamp {
+        self.stamps.get(&file.path).expect("Every inventoried file has its original metadata stamp")
+    }
+
     pub fn collect(options: &FolderScanOptions, stop: &Arc<AtomicBool>, progress: &impl Fn(FolderProgress)) -> Self {
         let mut scan = Self {
             report: FolderReport::default(),
@@ -156,7 +162,7 @@ impl Inventory {
             if filters.excluded(&entry_path) {
                 continue;
             }
-            let metadata = match fs::symlink_metadata(&entry_path) {
+            let metadata = match entry.metadata() {
                 Ok(metadata) => metadata,
                 Err(error) => {
                     self.fail(path, flc!("core_df_inspect", path = entry_path.to_string_lossy(), reason = error.to_string()));
@@ -215,15 +221,32 @@ impl Inventory {
         }
     }
 
-    pub fn revalidate(&mut self, _options: &FolderScanOptions) {
-        let changed: Vec<_> = self
-            .stamps
-            .iter()
-            .filter_map(|(path, before)| {
-                let unchanged = regular_metadata(path).and_then(|metadata| stamp(path, &metadata)).is_ok_and(|after| &after == before);
-                if unchanged { None } else { Some(path.clone()) }
-            })
-            .collect();
+    pub fn revalidate(&mut self, stop: &Arc<AtomicBool>, pool: &rayon::ThreadPool, progress: &(impl Fn(FolderProgress) + Sync)) {
+        let total = self.stamps.len();
+        let processed = AtomicUsize::new(0);
+        progress(FolderProgress {
+            phase: FolderScanPhase::Verifying,
+            completed: 0,
+            total,
+        });
+        let changed: Vec<_> = pool.install(|| {
+            self.stamps
+                .par_iter()
+                .filter_map(|(path, before)| {
+                    if stop.load(Ordering::Relaxed) {
+                        return None;
+                    }
+                    let unchanged = regular_metadata(path).and_then(|metadata| stamp(path, &metadata)).is_ok_and(|after| &after == before);
+                    let completed = processed.fetch_add(1, Ordering::Relaxed) + 1;
+                    progress(FolderProgress {
+                        phase: FolderScanPhase::Verifying,
+                        completed,
+                        total,
+                    });
+                    if unchanged { None } else { Some(path.clone()) }
+                })
+                .collect()
+        });
         for path in changed {
             self.fail(&path, flc!("core_df_changed", path = path.to_string_lossy()));
         }

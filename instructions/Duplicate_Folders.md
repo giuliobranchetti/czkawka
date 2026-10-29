@@ -68,14 +68,29 @@ filesystem deduplication, compression and NAS snapshots affect physical storage.
 Unreadable entries, hashing errors and observed file/directory changes invalidate
 the affected folder and recursive ancestors. Incomplete folders cannot produce
 exact or partial pairs. Unrelated readable folders can still produce results.
-Metadata is checked again after hashing. This is not an atomic filesystem
+Metadata is checked again after hashing in a separate, cancellable verification
+phase, using the same bounded worker pool. On Windows, the inventory reuses
+directory-entry metadata instead of requesting the same attributes again.
+This is not an atomic filesystem
 snapshot: scan an archive that is not being edited and do not use these reports
 as authorization for future destructive operations.
 
-Fresh streaming BLAKE3 hashing is the default. **Reuse hashes (trusted timestamps
+Fresh streaming BLAKE3 hashing is the default. Files with repeated sizes first
+receive the same 4 KiB head/tail prefilter used by the standard duplicate-file
+scanner. Different samples rule out equality; matching samples still require a
+full content hash. For files no larger than 8 KiB, the sample already covers the
+entire file and its hash is reused. Hash buffers are retained per worker instead
+of allocating a new 2 MiB buffer for every file. **Reuse hashes (trusted timestamps
 only)** is an explicit opt-in. The separate versioned cache checks size,
 nanosecond modification time and platform file identity; Unix also checks change
-time. Corrupt/unsupported caches are ignored with a warning and replaced. Leave
+time. It retains partial signatures as well as available full hashes. Existing
+full-hash cache records are migrated by reading only their samples. A cached
+partial signature is never treated as evidence of full equality. Cache hits in
+the JSON report can include partial signatures; `bytes_read`, `prehashes_computed`
+and `hashes_computed` describe the hashing work performed in this scan.
+`bytes_read` counts file payload consumed by the hashers, not SMB metadata
+requests, protocol overhead or operating-system read-ahead.
+Corrupt/unsupported caches are ignored with a warning and replaced. Leave
 reuse disabled on SMB/NAS storage with uncertain timestamps or identifiers;
 metadata-preserving changes cannot always be detected by a metadata cache.
 Cache files are excluded from the compared view. Source data is never written or
@@ -89,12 +104,15 @@ pipeline discards singleton sizes and directory completeness information needed
 for folder denominators. File-size prefiltering avoids hashing sizes that occur
 only once. Recursive directories share file indices instead of copying contents.
 An inverted content index accumulates partial matches without comparing every
-folder's entire file list against every other folder.
+folder's entire file list against every other folder. Sorted subtree intervals
+skip ancestor/descendant ranges together, and the comparison index retains counts
+without cloning and sorting every file path. Exact-only scans group complete
+multiset signatures directly instead of exploring partial-match candidates.
 
 Hashing defaults to two workers. A nonzero thread count in the general settings
 overrides that, capped at 32. Use a small count on SMB. The current limits are:
 1,000,000 files, 100,000 directories, nesting depth 128, 1,000,000 content-posting
-pair visits and 20,000 result pairs. Dense partial searches can reach the pair
+pair visits for partial searches and 20,000 result pairs. Dense partial searches can reach the pair
 visit limit; their incomplete counts are discarded and a warning is shown.
 Reaching an inventory limit invalidates that inventory. Reaching the result
 limit keeps valid pairs and explicitly reports omitted results. The virtualized
@@ -129,18 +147,57 @@ arranged as 100 renamed exact pairs, then scans with a cold and warm hash cache:
 cargo run --locked -p czkawka_core --example duplicate_folders_benchmark
 ```
 
+For an I/O-sensitive comparison with the standard file scanner, run:
+
+```sh
+cargo run --locked --release -p czkawka_core --example folder_scan_performance -- io
+cargo run --locked --release -p czkawka_core --example folder_scan_performance -- nested
+cargo run --locked --release -p czkawka_core --example folder_scan_performance -- same-prefix
+```
+
+The `io` case creates 96 equal-size 8 MiB files, with eight shared contents
+between two folders. Both scanners run without caches and with two workers,
+using both execution orders on fresh fixtures. The folder scanner now reads
+135,004,160 bytes (128.75 MiB), including samples, instead of fully hashing all
+805,306,368 bytes (768 MiB). It fully hashes 16 files instead of 96. The
+`same-prefix` case puts differences in the middle of the files: all full hashes
+remain necessary, and the scanner must still find only the eight actual matches.
+The `nested` case compares 24-level subtrees and checks ancestor exclusion.
+
+On the cloud Linux instance with Rust 1.94.1, two workers and caches disabled:
+
+| Scenario | Previous development build | Previous optimized scanner | Updated optimized scanner |
+| --- | --- | --- | --- |
+| Equal-size 8 MiB files (`io`) | 179-230 ms | 99-121 ms | 17-19 ms |
+| 24-level subtrees (`nested`) | 39 ms | 21 ms | 3 ms |
+
+The ranges reflect the two scanner execution orders, not a statistical latency
+guarantee. Sparse synthetic files and the local page cache differ substantially
+from real NAS storage. The `same-prefix` control still fully hashes all 96 files
+and reports only the eight actual shared contents; that work cannot be eliminated
+by sample filtering.
+
+For actual use, distribute a `--release` Windows build. The earlier `fastci`
+download was a development build with optimizations disabled and is not a useful
+performance baseline for an optimized standard application.
+
+Folder and standard file scans use separate caches. A first folder scan can still
+require full reads of genuinely duplicated contents even when the file scanner
+has a warm cache. Folder totals also include small and empty files; the standard
+scanner's minimum file-size filter can omit these. Compare the same roots,
+extension/exclusion filters and cache conditions when assessing performance.
+
 These measurements use synthetic local files and an operating-system page cache;
 they do not predict throughput, file-identifier support or cancellation latency
 on a particular SMB server. Actual Windows/UNC/Synology execution and Windows
 file-manager associations require validation on that platform. Linux GUI testing
 and Windows cross-compilation do not establish SMB runtime compatibility.
 
-In the cloud Linux instance, Rust 1.94.1 with the unoptimized `fastci` profile and
-two hashing workers scanned these 4,000 files in 210 ms with a cold hash cache and
-160 ms with a warm hash cache. Both runs found exactly 100 exact pairs and made
-6,000 content-posting pair visits. The warm run reused all 4,000 hashes. Peak
-process RSS was 13,480 KiB (13.2 MiB), measured in a standalone process including
-fixture creation and both scans, without counting compilation.
+Overall progress counts the five scan phases: collection, partial hashing, full
+hashing, verification, and comparison. The current-phase percentage and the
+overall percentage therefore advance independently; they do not estimate network
+throughput or remaining time. Phase changes are reported immediately, with
+frequent throttled file updates within a phase.
 
 No destructive workflow is implemented. If physical file removals are introduced
 later, Immich external libraries may need a rescan; removed entries can enter

@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use super::{FolderDifferences, FolderPair, FolderProgress, FolderReport, FolderScanOptions, FolderScanPhase, FolderSummary};
+use super::{FolderDifferences, FolderFile, FolderPair, FolderProgress, FolderReport, FolderScanOptions, FolderScanPhase, FolderSummary};
 use crate::flc;
 
 type Content = (u64, String);
@@ -22,22 +22,67 @@ fn bag(report: &FolderReport, folder: &FolderSummary) -> Bag {
     contents
 }
 
+fn content_counts<'a>(files: &'a [FolderFile], folder: &FolderSummary) -> BTreeMap<(u64, &'a str), usize> {
+    let mut counts = BTreeMap::new();
+    for file in folder.files.iter().filter_map(|index| files.get(*index)) {
+        if let Some(hash) = &file.hash {
+            *counts.entry((file.size, hash.as_str())).or_default() += 1;
+        }
+    }
+    counts
+}
+
+fn eligible(folder: &FolderSummary, options: &FolderScanOptions) -> bool {
+    folder.complete && folder.file_count >= options.minimum_files.max(1) && folder.total_bytes >= options.minimum_bytes
+}
+
+fn subtree_ends(folders: &[FolderSummary]) -> Vec<usize> {
+    let mut ends = vec![folders.len(); folders.len()];
+    let mut ancestors = Vec::<usize>::new();
+    for (index, folder) in folders.iter().enumerate() {
+        while let Some(&parent) = ancestors.last() {
+            if folders.get(parent).is_some_and(|parent| folder.path.starts_with(&parent.path)) {
+                break;
+            }
+            if let Some(end) = ends.get_mut(parent) {
+                *end = index;
+            }
+            ancestors.pop();
+        }
+        ancestors.push(index);
+    }
+    ends
+}
+
 pub(super) fn find_pairs(report: &mut FolderReport, options: &FolderScanOptions, stop: &Arc<AtomicBool>, progress: &impl Fn(FolderProgress)) {
-    let mut postings = BTreeMap::<Content, Vec<(usize, usize)>>::new();
-    for (idx, folder) in report.folders.iter().enumerate() {
+    progress(FolderProgress {
+        phase: FolderScanPhase::Comparing,
+        completed: 0,
+        total: 0,
+    });
+    if report.truncated || stop.load(Ordering::Relaxed) {
+        return;
+    }
+    report.folders.sort_by(|a, b| a.path.cmp(&b.path));
+    let ends = subtree_ends(&report.folders);
+    if options.exact_only {
+        find_exact_pairs(report, options, stop, progress, &ends);
+        return;
+    }
+    let mut postings = BTreeMap::<(u64, &str), Vec<(usize, usize)>>::new();
+    for (index, folder) in report.folders.iter().enumerate() {
         if stop.load(Ordering::Relaxed) {
             return;
         }
-        if !folder.complete || folder.file_count < options.minimum_files.max(1) || folder.total_bytes < options.minimum_bytes {
-            continue;
-        }
-        for (key, paths) in bag(report, folder) {
-            postings.entry(key).or_default().push((idx, paths.len()));
+        if eligible(folder, options) {
+            for (key, count) in content_counts(&report.files, folder) {
+                postings.entry(key).or_default().push((index, count));
+            }
         }
     }
     let total = postings.len();
     let mut candidates = BTreeMap::<(usize, usize), (usize, u64)>::new();
-    'contents: for (completed, ((size, _hash), folders)) in postings.into_iter().enumerate() {
+    for (completed, ((size, _hash), folders)) in postings.into_iter().enumerate() {
         if stop.load(Ordering::Relaxed) {
             return;
         }
@@ -46,8 +91,10 @@ pub(super) fn find_pairs(report: &mut FolderReport, options: &FolderScanOptions,
             completed,
             total,
         });
-        for (offset, &(left, left_count)) in folders.iter().enumerate() {
-            for &(right, right_count) in folders.iter().skip(offset + 1) {
+        for &(left, left_count) in &folders {
+            let end = ends.get(left).copied().expect("Posting indices refer to sorted folder intervals");
+            let first = folders.partition_point(|&(index, _)| index < end);
+            for &(right, right_count) in folders.iter().skip(first) {
                 if stop.load(Ordering::Relaxed) {
                     return;
                 }
@@ -55,13 +102,7 @@ pub(super) fn find_pairs(report: &mut FolderReport, options: &FolderScanOptions,
                 if report.candidate_visits > options.maximum_candidate_visits {
                     report.truncated = true;
                     report.warnings.push(flc!("core_df_candidate_limit"));
-                    break 'contents;
-                }
-                let (Some(a), Some(b)) = (report.folders.get(left), report.folders.get(right)) else {
-                    continue;
-                };
-                if a.path.starts_with(&b.path) || b.path.starts_with(&a.path) {
-                    continue;
+                    return;
                 }
                 let count = left_count.min(right_count);
                 let candidate = candidates.entry((left, right)).or_default();
@@ -70,17 +111,13 @@ pub(super) fn find_pairs(report: &mut FolderReport, options: &FolderScanOptions,
             }
         }
     }
-    // A truncated inverted-index pass has incomplete counts: never present those as exact.
-    if report.truncated {
-        return;
-    }
     for ((left, right), (matched_count, matched_bytes)) in candidates {
         let (Some(a), Some(b)) = (report.folders.get(left), report.folders.get(right)) else {
             continue;
         };
         let exact = matched_count == a.file_count && matched_count == b.file_count;
         let denominator = a.file_count.min(b.file_count) as u128;
-        if (options.exact_only && !exact) || (matched_count as u128 * 100 < denominator * u128::from(options.minimum_coverage.min(100))) {
+        if matched_count as u128 * 100 < denominator * u128::from(options.minimum_coverage.min(100)) {
             continue;
         }
         if report.pairs.len() >= options.maximum_pairs {
@@ -96,6 +133,57 @@ pub(super) fn find_pairs(report: &mut FolderReport, options: &FolderScanOptions,
             exact,
             potential_duplicate_bytes: matched_bytes,
         });
+    }
+}
+
+type Signature<'a> = Vec<((u64, &'a str), usize)>;
+
+fn find_exact_pairs(report: &mut FolderReport, options: &FolderScanOptions, stop: &Arc<AtomicBool>, progress: &impl Fn(FolderProgress), ends: &[usize]) {
+    let mut groups = BTreeMap::<Signature<'_>, Vec<usize>>::new();
+    for (index, folder) in report.folders.iter().enumerate() {
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        if !eligible(folder, options) {
+            continue;
+        }
+        let counts = content_counts(&report.files, folder);
+        if counts.values().sum::<usize>() != folder.file_count {
+            continue;
+        }
+        groups.entry(counts.into_iter().collect()).or_default().push(index);
+    }
+    let total = groups.len();
+    for (completed, (_signature, folders)) in groups.into_iter().enumerate() {
+        progress(FolderProgress {
+            phase: FolderScanPhase::Comparing,
+            completed,
+            total,
+        });
+        for &left in &folders {
+            let end = ends.get(left).copied().expect("Signature indices refer to sorted folder intervals");
+            let first = folders.partition_point(|&index| index < end);
+            for &right in folders.iter().skip(first) {
+                if stop.load(Ordering::Relaxed) {
+                    return;
+                }
+                if report.pairs.len() >= options.maximum_pairs {
+                    report.truncated = true;
+                    report.warnings.push(flc!("core_df_result_limit"));
+                    return;
+                }
+                let a = report.folders.get(left).expect("Signature indices refer to inventoried folders");
+                report.candidate_visits += 1;
+                report.pairs.push(FolderPair {
+                    folder_a: left,
+                    folder_b: right,
+                    matched_count: a.file_count,
+                    matched_bytes: a.total_bytes,
+                    exact: true,
+                    potential_duplicate_bytes: a.total_bytes,
+                });
+            }
+        }
     }
 }
 
