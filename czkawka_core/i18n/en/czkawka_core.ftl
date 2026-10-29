@@ -183,3 +183,7 @@ core_df_workers = Cannot create hashing workers: { $reason }
 core_df_candidate_limit = Partial-pair candidate limit reached; refine included folders or filters
 core_df_result_limit = Folder-pair result limit reached; additional pairs were omitted
 core_df_file_limit = File limit reached (1,000,000)
+core_df_cache_too_large = Cache exceeds 64 MiB
+core_df_cache_no_parent = Cache has no parent directory
+core_df_report_no_name = Report path has no file name
+core_df_report_source = A report cannot overwrite an inventoried source file

@@ -80,7 +80,7 @@ pub(super) fn load(options: &FolderScanOptions, warnings: &mut Vec<String>) -> B
     let result = (|| -> Result<Cache, String> {
         let file = fs::File::open(path).map_err(|error| error.to_string())?;
         if file.metadata().map_err(|error| error.to_string())?.len() > 64 * 1024 * 1024 {
-            return Err("Cache exceeds 64 MiB".into());
+            return Err(flc!("core_df_cache_too_large"));
         }
         serde_json::from_reader(BufReader::new(file)).map_err(|error| error.to_string())
     })();
@@ -104,7 +104,7 @@ pub(super) fn save(options: &FolderScanOptions, entries: &BTreeMap<PathBuf, Cach
         return;
     };
     let result = (|| -> Result<(), std::io::Error> {
-        let parent = path.parent().ok_or_else(|| std::io::Error::other("Cache has no parent"))?;
+        let parent = path.parent().ok_or_else(|| std::io::Error::other(flc!("core_df_cache_no_parent")))?;
         fs::create_dir_all(parent)?;
         let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
         {

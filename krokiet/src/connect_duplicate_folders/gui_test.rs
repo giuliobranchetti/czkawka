@@ -69,7 +69,8 @@ fn folder_scan_updates_real_slint_models_and_blocks_deletion() {
                 assert!(metrics_a.contains("2 / 2") || metrics_a.contains("2 / 3"), "{metrics_a:?}");
                 assert!(row.metrics_a.contains("100.00") || row.metrics_b.contains("100.00"));
                 assert!(row.metrics_a.contains("66.66") || row.metrics_b.contains("66.66"));
-                assert!(row.path_a.contains("Reference") || row.path_b.contains("Reference"));
+                let reference = crate::flk!("folders_reference");
+                assert!(row.path_a.contains(&reference) || row.path_b.contains(&reference));
                 ui.set_selected_pair(0);
                 app.global::<Callabler>().invoke_folders_show_details(0, 0);
                 phase_copy.set(1);
