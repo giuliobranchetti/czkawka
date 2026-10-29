@@ -112,6 +112,21 @@ fn translate_items(app: &MainWindow) {
     translation.set_excluded_paths_text(flk!("excluded_paths").into());
     translation.set_ref_text(flk!("ref").into());
     translation.set_path_text(flk!("path").into());
+    translation.set_tool_duplicate_folders_text(flk!("tool_duplicate_folders").into());
+    translation.set_folders_scope_text(flk!("folders_scope").into());
+    translation.set_folders_exact_text(flk!("folders_exact").into());
+    translation.set_folders_coverage_text(flk!("folders_coverage").into());
+    translation.set_folders_minimum_files_text(flk!("folders_minimum_files").into());
+    translation.set_folders_minimum_bytes_text(flk!("folders_minimum_bytes").into());
+    translation.set_folders_recursive_text(flk!("folders_recursive").into());
+    translation.set_folders_cache_text(flk!("folders_cache").into());
+    translation.set_folders_details_text(flk!("folders_details").into());
+    translation.set_folders_open_a_text(flk!("folders_open_a").into());
+    translation.set_folders_open_b_text(flk!("folders_open_b").into());
+    translation.set_folders_common_text(flk!("folders_common").into());
+    translation.set_folders_only_a_text(flk!("folders_only_a").into());
+    translation.set_folders_only_b_text(flk!("folders_only_b").into());
+    translation.set_folders_export_text(flk!("folders_export").into());
     translation.set_tool_duplicate_files_text(flk!("tool_duplicate_files").into());
     translation.set_tool_empty_folders_text(flk!("tool_empty_folders").into());
     translation.set_tool_big_files_text(flk!("tool_big_files").into());
@@ -442,8 +457,9 @@ fn translate_items(app: &MainWindow) {
     translation.set_context_menu_copy_full_path_text(flk!("context_menu_copy_full_path_text").into());
     translation.set_context_menu_rename_text(flk!("context_menu_rename_text").into());
 
-    let tools_model: [(SharedString, ActiveTab); TOOLS_NUMBER] = [
+    let tools_model: [(SharedString, ActiveTab); TOOLS_NUMBER + 1] = [
         (flk!("tool_duplicate_files").into(), ActiveTab::DuplicateFiles),
+        (flk!("tool_duplicate_folders").into(), ActiveTab::DuplicateFolders),
         (flk!("tool_empty_folders").into(), ActiveTab::EmptyFolders),
         (flk!("tool_big_files").into(), ActiveTab::BigFiles),
         (flk!("tool_empty_files").into(), ActiveTab::EmptyFiles),

@@ -61,6 +61,7 @@ mod connect_build_info;
 mod connect_clean_cache;
 mod connect_compare;
 mod connect_directories_changes;
+mod connect_duplicate_folders;
 mod connect_open;
 mod connect_progress_receiver;
 mod connect_rfd;
@@ -169,6 +170,7 @@ fn main() {
     connect_delete_button(&app, progress_sender.clone(), stop_flag.clone());
     connect_trash_button(&app, progress_sender.clone(), stop_flag.clone());
     connect_scan_button(&app, progress_sender.clone(), stop_flag.clone(), Arc::clone(&shared_models), Arc::clone(&audio_player));
+    connect_duplicate_folders::connect(&app, &shared_models);
     connect_stop_button(&app, stop_flag.clone());
     connect_open_items(&app);
     connect_progress_gathering(&app, progress_receiver);

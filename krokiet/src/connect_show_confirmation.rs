@@ -13,6 +13,9 @@ pub(crate) fn connect_show_confirmation(app: &MainWindow, shared_models: Arc<Mut
     let a = app.as_weak();
     app.on_request_setup_action_popup(move |popup_request: PopupRequest| {
         let app = a.upgrade().expect("Failed to upgrade app :(");
+        if app.global::<crate::GuiState>().get_active_tab() == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
         let translation = app.global::<Translations>();
         let res = get_checked_info_from_app(&app);
         let mut data = "".to_string();

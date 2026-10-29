@@ -116,7 +116,7 @@ export component ActionButtons inherits HorizontalLayout {
     }
 
     select_button := Button {
-        visible: lists_enabled;
+        visible: lists_enabled && active_tab != ActiveTab.DuplicateFolders;
         height: parent.height;
         enabled: base_buttons_may_be_available && self.visible;
         text: self.visible && Settings.show_only_icons ? "" : Translations.select_button_text;
@@ -128,7 +128,7 @@ export component ActionButtons inherits HorizontalLayout {
     }
 
     move_button := Button {
-        visible: lists_enabled;
+        visible: lists_enabled && active_tab != ActiveTab.DuplicateFolders;
         height: parent.height;
         enabled: base_buttons_may_be_available && self.visible && checked_anything;
         text: self.visible && Settings.show_only_icons ? "" : Translations.move_button_text;
@@ -140,7 +140,7 @@ export component ActionButtons inherits HorizontalLayout {
     }
 
     delete_button := Button {
-        visible: lists_enabled;
+        visible: lists_enabled && active_tab != ActiveTab.DuplicateFolders;
         height: parent.height;
         enabled: base_buttons_may_be_available && self.visible && checked_anything;
         text: self.visible && Settings.show_only_icons ? "" : Translations.delete_button_text;
@@ -152,7 +152,7 @@ export component ActionButtons inherits HorizontalLayout {
     }
 
     trash_button := Button {
-        visible: lists_enabled;
+        visible: lists_enabled && active_tab != ActiveTab.DuplicateFolders;
         height: parent.height;
         enabled: base_buttons_may_be_available && self.visible && checked_anything;
         text: self.visible && Settings.show_only_icons ? "" : Translations.trash_button_text;
@@ -164,7 +164,7 @@ export component ActionButtons inherits HorizontalLayout {
     }
 
     save_button := Button {
-        visible: lists_enabled;
+        visible: lists_enabled && active_tab != ActiveTab.DuplicateFolders;
         height: parent.height;
         enabled: base_buttons_may_be_available && self.visible;
         text: self.visible && Settings.show_only_icons ? "" : Translations.save_button_text;
@@ -176,7 +176,7 @@ export component ActionButtons inherits HorizontalLayout {
     }
 
     sort_button := Button {
-        visible: lists_enabled;
+        visible: lists_enabled && active_tab != ActiveTab.DuplicateFolders;
         height: parent.height;
         enabled: base_buttons_may_be_available && self.visible;
         text: self.visible && Settings.show_only_icons ? "" : Translations.sort_button_text;

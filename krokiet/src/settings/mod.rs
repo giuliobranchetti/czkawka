@@ -442,6 +442,11 @@ pub(crate) fn set_settings_to_gui(app: &MainWindow, custom_settings: &SettingsCu
     settings.set_thread_number(custom_settings.thread_number as f32);
 
     settings.set_recursive_search(custom_settings.recursive_search);
+    settings.set_folders_exact_only(custom_settings.folders_exact_only);
+    settings.set_folders_minimum_coverage(custom_settings.folders_minimum_coverage.to_string().into());
+    settings.set_folders_minimum_files(custom_settings.folders_minimum_files.to_string().into());
+    settings.set_folders_minimum_bytes(custom_settings.folders_minimum_bytes.to_string().into());
+    settings.set_folders_trust_cache(custom_settings.folders_trust_cache);
     settings.set_duplicate_image_preview(custom_settings.duplicate_image_preview);
     settings.set_duplicate_use_prehash(custom_settings.duplicate_use_prehash);
     settings.set_duplicate_minimal_hash_cache_size(custom_settings.duplicate_minimal_hash_cache_size.to_string().into());
@@ -820,6 +825,11 @@ pub(crate) fn collect_settings(app: &MainWindow) -> SettingsCustom {
     assert_eq!(column_sizes.len(), TOOLS_NUMBER);
 
     SettingsCustom {
+        folders_exact_only: settings.get_folders_exact_only(),
+        folders_minimum_coverage: settings.get_folders_minimum_coverage().parse().unwrap_or(90),
+        folders_minimum_files: settings.get_folders_minimum_files().parse().unwrap_or(1),
+        folders_minimum_bytes: settings.get_folders_minimum_bytes().parse().unwrap_or(0),
+        folders_trust_cache: settings.get_folders_trust_cache(),
         included_paths,
         included_paths_referenced,
         excluded_paths,

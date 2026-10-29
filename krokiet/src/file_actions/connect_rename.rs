@@ -19,9 +19,12 @@ pub(crate) fn connect_rename(app: &MainWindow, progress_sender: Sender<ProgressD
         let weak_app = a.clone();
         let progress_sender = progress_sender.clone();
         let stop_flag = stop_flag.clone();
-        stop_flag.store(false, Ordering::Relaxed);
         let app = a.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
+        stop_flag.store(false, Ordering::Relaxed);
 
         let processor = ModelProcessor::new(active_tab);
         match active_tab {
@@ -47,6 +50,9 @@ fn connect_rename_single_file(app: &MainWindow) {
         let RenameFileRequest { row_idx: idx, new_name } = request;
         let app = a.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
         let model = active_tab.get_tool_model(&app);
         let path_idx = active_tab.get_str_path_idx();
         let name_idx = active_tab.get_str_name_idx();
@@ -114,6 +120,9 @@ fn connect_rename_single_file(app: &MainWindow) {
         let RenameFileRequest { row_idx: idx, new_name } = request;
         let app = a.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return false;
+        }
         let model = active_tab.get_tool_model(&app);
         let path_idx = active_tab.get_str_path_idx();
         let name_idx = active_tab.get_str_name_idx();

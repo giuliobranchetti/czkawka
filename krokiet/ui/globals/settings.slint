@@ -1,6 +1,11 @@
 import { ExcludedPathsModel, IncludedPathsModel } from "common.slint";
 
 export global Settings {
+    in-out property <bool> folders_exact_only: false;
+    in-out property <string> folders_minimum_coverage: "90";
+    in-out property <string> folders_minimum_files: "1";
+    in-out property <string> folders_minimum_bytes: "0";
+    in-out property <bool> folders_trust_cache: false;
     in-out property <int> settings_preset_idx: 0;
     in-out property <[string]> settings_presets: ["Preset 1", "Preset 2"];
 

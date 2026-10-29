@@ -4,6 +4,7 @@ import { SettingsList } from "settings_list.slint";
 import { GuiState } from "../globals/gui_state.slint";
 import { About } from "about.slint";
 import { Settings } from "../globals/settings.slint";
+import { DuplicateFolders } from "duplicate_folders.slint";
 
 export component MainList {
     callback show_clean_cache_popup();
@@ -39,6 +40,11 @@ export component MainList {
     in-out property <[SingleMainListModel]> video_optimizer_model: [];
 
     callback changed_active_tab();
+
+    if GuiState.active_tab == ActiveTab.DuplicateFolders: DuplicateFolders {
+        width: parent.width;
+        height: parent.height;
+    }
 
     duplicates := SelectableTableView {
         visible: GuiState.active_tab == ActiveTab.DuplicateFiles;

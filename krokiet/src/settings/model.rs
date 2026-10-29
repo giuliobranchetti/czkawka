@@ -44,6 +44,16 @@ pub const PRESET_NAME_RESERVED: &str = "CLI Folders";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SettingsCustom {
+    #[serde(default)]
+    pub folders_exact_only: bool,
+    #[serde(default = "folders_default_coverage")]
+    pub folders_minimum_coverage: u8,
+    #[serde(default = "folders_default_files")]
+    pub folders_minimum_files: usize,
+    #[serde(default)]
+    pub folders_minimum_bytes: u64,
+    #[serde(default)]
+    pub folders_trust_cache: bool,
     #[serde(default = "default_included_paths")]
     pub included_paths: Vec<PathBuf>,
     #[serde(default)]
@@ -292,6 +302,13 @@ impl Default for SettingsCustom {
     fn default() -> Self {
         serde_json::from_str("{}").expect("Cannot fail creating {} from string")
     }
+}
+
+fn folders_default_coverage() -> u8 {
+    90
+}
+fn folders_default_files() -> usize {
+    1
 }
 
 pub struct ComboBoxItems {

@@ -23,9 +23,12 @@ pub(crate) fn connect_optimize_video(app: &MainWindow, progress_sender: Sender<P
         let weak_app = a.clone();
         let progress_sender = progress_sender_crop.clone();
         let stop_flag = stop_flag_crop.clone();
-        stop_flag.store(false, Ordering::Relaxed);
         let app = a.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
+        stop_flag.store(false, Ordering::Relaxed);
 
         let settings = app.global::<Settings>();
         let reencode = settings.get_popup_crop_video_reencode();
@@ -50,9 +53,12 @@ pub(crate) fn connect_optimize_video(app: &MainWindow, progress_sender: Sender<P
         let weak_app = a2.clone();
         let progress_sender = progress_sender.clone();
         let stop_flag = stop_flag.clone();
-        stop_flag.store(false, Ordering::Relaxed);
         let app = a2.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
+        stop_flag.store(false, Ordering::Relaxed);
 
         let settings = app.global::<Settings>();
         let combo = collect_combo_box_settings(&app);

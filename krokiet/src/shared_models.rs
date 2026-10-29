@@ -20,6 +20,8 @@ use czkawka_core::tools::video_optimizer::VideoOptimizer;
 use crate::ActiveTab;
 
 pub struct SharedModels {
+    pub duplicate_folders_report: Option<Arc<czkawka_core::tools::duplicate_folders::FolderReport>>,
+    pub duplicate_folders_generation: u64,
     pub shared_duplication_state: Option<DuplicateFinder>,
     pub shared_empty_folders_state: Option<EmptyFolder>,
     pub shared_empty_files_state: Option<EmptyFiles>,
@@ -39,6 +41,8 @@ pub struct SharedModels {
 impl SharedModels {
     pub fn new() -> Self {
         Self {
+            duplicate_folders_report: None,
+            duplicate_folders_generation: 0,
             shared_duplication_state: None,
             shared_empty_folders_state: None,
             shared_empty_files_state: None,
@@ -77,7 +81,7 @@ impl SharedModels {
             ActiveTab::BadNames => self.shared_bad_names_state.as_ref().map(|x| x.save_all_in_one(cd, "results_bad_names")),
             ActiveTab::ExifRemover => self.shared_exif_remover_state.as_ref().map(|x| x.save_all_in_one(cd, "results_exif_remover")),
             ActiveTab::VideoOptimizer => self.shared_video_optimizer_state.as_ref().map(|x| x.save_all_in_one(cd, "results_video_optimizer")),
-            ActiveTab::Settings | ActiveTab::About => panic!("Cannot save results for settings or about tab"),
+            ActiveTab::DuplicateFolders | ActiveTab::Settings | ActiveTab::About => panic!("Cannot save results for settings or about tab"),
         };
 
         let current_path = match std::env::current_dir() {
@@ -107,7 +111,7 @@ impl SharedModels {
             ActiveTab::BadNames => self.shared_bad_names_state.as_ref().map(|e| e.get_use_reference_folders()),
             ActiveTab::ExifRemover => self.shared_exif_remover_state.as_ref().map(|e| e.get_use_reference_folders()),
             ActiveTab::VideoOptimizer => self.shared_video_optimizer_state.as_ref().map(|e| e.get_use_reference_folders()),
-            ActiveTab::Settings | ActiveTab::About => panic!("Cannot get use reference folders for settings or about tab"),
+            ActiveTab::DuplicateFolders | ActiveTab::Settings | ActiveTab::About => panic!("Cannot get use reference folders for settings or about tab"),
         }
         .unwrap_or(false);
 

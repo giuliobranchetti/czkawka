@@ -217,6 +217,7 @@ pub(crate) fn set_select_buttons(app: &MainWindow) {
         | ActiveTab::BadNames
         | ActiveTab::ExifRemover
         | ActiveTab::VideoOptimizer
+        | ActiveTab::DuplicateFolders
         | ActiveTab::Settings
         | ActiveTab::About => Vec::new(),
     };

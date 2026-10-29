@@ -1,0 +1,95 @@
+import { Button, CheckBox, ComboBox, LineEdit, ListView, TextEdit } from "std-widgets.slint";
+import { Settings } from "../globals/settings.slint";
+import { Translations } from "../globals/translations.slint";
+import { FolderUi } from "../globals/duplicate_folders.slint";
+import { Callabler } from "../globals/callabler.slint";
+import { FontSizes } from "../globals/fonts.slint";
+
+export component DuplicateFolders inherits VerticalLayout {
+    spacing: 4px;
+    Text {
+        text: Translations.folders_scope_text;
+        wrap: word-wrap;
+        font-size: FontSizes.normal;
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        CheckBox { enabled: !FolderUi.working; text: Translations.folders_exact_text; checked <=> Settings.folders_exact_only; }
+        Text { text: Translations.folders_coverage_text; vertical-alignment: center; }
+        LineEdit { enabled: !FolderUi.working; text <=> Settings.folders_minimum_coverage; input-type: number; preferred-width: 50px; }
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        Text { text: Translations.folders_minimum_files_text; vertical-alignment: center; }
+        LineEdit { enabled: !FolderUi.working; text <=> Settings.folders_minimum_files; input-type: number; preferred-width: 60px; }
+        Text { text: Translations.folders_minimum_bytes_text; vertical-alignment: center; }
+        LineEdit { enabled: !FolderUi.working; text <=> Settings.folders_minimum_bytes; input-type: number; preferred-width: 80px; }
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        CheckBox { enabled: !FolderUi.working; text: Translations.folders_recursive_text; checked <=> Settings.recursive_search; }
+        CheckBox { enabled: !FolderUi.working; text: Translations.folders_cache_text; checked <=> Settings.folders_trust_cache; }
+    }
+    Text { text: FolderUi.status; wrap: word-wrap; }
+    if FolderUi.warnings != "": TextEdit { text: FolderUi.warnings; read-only: true; preferred-height: 65px; }
+    ListView {
+        vertical-stretch: 1;
+        for pair in FolderUi.pairs: VerticalLayout {
+            spacing: 2px;
+            height: 230px;
+            Text { text: pair.state; font-weight: 600; }
+            LineEdit { text: pair.path-a; read-only: true; }
+            Text { text: pair.metrics-a; wrap: word-wrap; }
+            LineEdit { text: pair.path-b; read-only: true; }
+            Text { text: pair.metrics-b; wrap: word-wrap; }
+            HorizontalLayout {
+        spacing: 6px;
+                Text { text: pair.logical-bytes; wrap: word-wrap; vertical-alignment: center; }
+                Button {
+                    text: Translations.folders_details_text;
+                    enabled: !FolderUi.working && !FolderUi.detail-loading;
+                    clicked => {
+                        FolderUi.selected-pair = pair.pair-index;
+                        Callabler.folders_show_details(pair.pair-index, FolderUi.detail-kind);
+                    }
+                }
+                Button { text: Translations.folders_open_a_text; clicked => { Callabler.folders_open_folder(pair.pair-index, false); } }
+                Button { text: Translations.folders_open_b_text; clicked => { Callabler.folders_open_folder(pair.pair-index, true); } }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        ComboBox {
+            model: [Translations.folders_common_text, Translations.folders_only_a_text, Translations.folders_only_b_text];
+            current-index <=> FolderUi.detail-kind;
+            enabled: !FolderUi.working && !FolderUi.detail-loading;
+            selected(index) => {
+                if FolderUi.selected-pair >= 0 { Callabler.folders_show_details(FolderUi.selected-pair, self.current-index); }
+            }
+        }
+        Text { text: FolderUi.detail-status; overflow: elide; vertical-alignment: center; }
+        Button {
+            text: Translations.folders_export_text;
+            enabled: !FolderUi.working;
+            clicked => { Callabler.folders_export(); }
+        }
+    }
+    ListView {
+        vertical-stretch: 0.6;
+        for item in FolderUi.details: HorizontalLayout {
+        spacing: 6px;
+            height: 28px;
+            if item.path-a != "": HorizontalLayout {
+        spacing: 6px;
+                LineEdit { text: item.path-a; read-only: true; }
+                Button { text: Translations.folders_open_a_text; clicked => { Callabler.folders_open_file(item.path-a); } }
+            }
+            if item.path-b != "": HorizontalLayout {
+        spacing: 6px;
+                LineEdit { text: item.path-b; read-only: true; }
+                Button { text: Translations.folders_open_b_text; clicked => { Callabler.folders_open_file(item.path-b); } }
+            }
+        }
+    }
+}

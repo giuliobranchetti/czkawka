@@ -75,6 +75,11 @@ pub(crate) fn connect_scan_button(
     app.on_scan_starting(move |active_tab| {
         let app = a.upgrade().expect("Failed to upgrade app :(");
 
+        if active_tab == ActiveTab::DuplicateFolders {
+            crate::connect_duplicate_folders::start_scan(&app, Arc::clone(&stop_flag), Arc::clone(&shared_models));
+            return;
+        }
+
         if !check_if_there_are_any_included_folders(&app) {
             app.invoke_scan_ended(flk!("rust_no_included_paths").into());
             return;
@@ -131,7 +136,7 @@ pub(crate) fn connect_scan_button(
             ActiveTab::TemporaryFiles => scan_temporary_files(a, scan_data),
             ActiveTab::ExifRemover => scan_exif_remover(a, scan_data),
             ActiveTab::VideoOptimizer => scan_video_optimizer(a, scan_data),
-            ActiveTab::Settings | ActiveTab::About => panic!("Button should be disabled"),
+            ActiveTab::DuplicateFolders | ActiveTab::Settings | ActiveTab::About => panic!("Button should be disabled"),
         }
     });
 }

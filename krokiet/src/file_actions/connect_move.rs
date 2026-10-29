@@ -18,9 +18,12 @@ pub(crate) fn connect_move(app: &MainWindow, progress_sender: Sender<ProgressDat
         let weak_app = a.clone();
         let progress_sender = progress_sender.clone();
         let stop_flag = stop_flag.clone();
-        stop_flag.store(false, Ordering::Relaxed);
         let app = a.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
+        stop_flag.store(false, Ordering::Relaxed);
 
         let preserve_structure = app.global::<Settings>().get_popup_move_preserve_folder_structure();
         let copy_mode = app.global::<Settings>().get_popup_move_copy_mode();

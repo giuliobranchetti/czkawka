@@ -1,0 +1,26 @@
+export struct FolderPairRow {
+    pair-index: int,
+    state: string,
+    path-a: string,
+    path-b: string,
+    metrics-a: string,
+    metrics-b: string,
+    logical-bytes: string,
+}
+
+export struct FolderDetailRow {
+    path-a: string,
+    path-b: string,
+}
+
+export global FolderUi {
+    in-out property <[FolderPairRow]> pairs: [];
+    in-out property <[FolderDetailRow]> details: [];
+    in-out property <string> status;
+    in-out property <string> warnings;
+    in-out property <string> detail-status;
+    in-out property <int> selected-pair: -1;
+    in-out property <int> detail-kind: 0;
+    in-out property <bool> detail-loading: false;
+    in-out property <bool> working: false;
+}

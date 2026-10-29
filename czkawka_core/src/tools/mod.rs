@@ -3,6 +3,7 @@ pub mod bad_names;
 pub mod big_file;
 pub mod broken_files;
 pub mod duplicate;
+pub mod duplicate_folders;
 pub mod empty_files;
 pub mod empty_folder;
 pub mod exif_remover;

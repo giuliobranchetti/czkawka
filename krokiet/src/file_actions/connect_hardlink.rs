@@ -17,9 +17,12 @@ pub(crate) fn connect_hardlink(app: &MainWindow, progress_sender: Sender<Progres
         let weak_app = a.clone();
         let progress_sender = progress_sender.clone();
         let stop_flag = stop_flag.clone();
-        stop_flag.store(false, Ordering::Relaxed);
         let app = a.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
+        stop_flag.store(false, Ordering::Relaxed);
 
         let processor = ModelProcessor::new(active_tab);
         processor.hardlink_selected_items(progress_sender, weak_app, stop_flag);

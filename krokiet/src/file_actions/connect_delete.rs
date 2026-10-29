@@ -17,9 +17,12 @@ pub(crate) fn connect_delete_button(app: &MainWindow, progress_sender: Sender<Pr
         let weak_app = a.clone();
         let progress_sender = progress_sender.clone();
         let stop_flag = stop_flag.clone();
-        stop_flag.store(false, Ordering::Relaxed);
         let app = a.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
+        stop_flag.store(false, Ordering::Relaxed);
 
         let processor = ModelProcessor::new(active_tab);
         processor.delete_selected_items(false, progress_sender, weak_app, stop_flag);
@@ -32,9 +35,12 @@ pub(crate) fn connect_trash_button(app: &MainWindow, progress_sender: Sender<Pro
         let weak_app = a.clone();
         let progress_sender = progress_sender.clone();
         let stop_flag = stop_flag.clone();
-        stop_flag.store(false, Ordering::Relaxed);
         let app = a.upgrade().expect("Failed to upgrade app :(");
         let active_tab = app.global::<GuiState>().get_active_tab();
+        if active_tab == crate::ActiveTab::DuplicateFolders {
+            return;
+        }
+        stop_flag.store(false, Ordering::Relaxed);
 
         let processor = ModelProcessor::new(active_tab);
         processor.delete_selected_items(true, progress_sender, weak_app, stop_flag);
