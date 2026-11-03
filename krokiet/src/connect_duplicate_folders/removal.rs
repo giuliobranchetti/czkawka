@@ -137,6 +137,7 @@ fn is_link(metadata: &fs::Metadata) -> bool {
 }
 
 fn inventory(root: &Path) -> Result<Inventory, String> {
+    let mut buffer = vec![0u8; 64 * 1024];
     let mut entries = Inventory::new();
     let mut pending = vec![(root.to_path_buf(), 0)];
     while let Some((path, depth)) = pending.pop() {
@@ -156,7 +157,6 @@ fn inventory(root: &Path) -> Result<Inventory, String> {
         } else if metadata.is_file() {
             let mut file = fs::File::open(&path).map_err(contextual)?;
             let mut hasher = blake3::Hasher::new();
-            let mut buffer = [0u8; 64 * 1024];
             let mut size = 0;
             loop {
                 let read = file.read(&mut buffer).map_err(contextual)?;
@@ -181,7 +181,10 @@ fn inventory(root: &Path) -> Result<Inventory, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{Inventory, exclusive_count, inventory, prefer_b};
+    use std::fs;
+    use std::path::PathBuf;
+    use czkawka_core::tools::duplicate_folders::FolderSummary;
 
     fn folder(path: &str, file_count: usize) -> FolderSummary {
         serde_json::from_value(serde_json::json!({

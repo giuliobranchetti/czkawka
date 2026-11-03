@@ -1,6 +1,6 @@
 # Duplicate Folders in Krokiet
 
-Duplicate Folders is an analysis-only tool. It compares original file bytes and
+Duplicate Folders compares original file bytes and
 does not connect to Immich or modify its database. Renamed photographs match;
 visually similar photographs with different bytes do not.
 
@@ -23,8 +23,26 @@ application settings.
 
 The reference checkbox marks a directory to retain. Reference directories remain
 visible in comparisons, including when every included directory is a reference.
-The new tool has no deletion, trash, move, rename, hard-link or symlink actions.
-Backend action handlers also reject this tool, including stale popup callbacks.
+The selected pair has a dedicated **Keep A, remove B / Keep B, remove A** choice.
+The default keeps the folder with more scanned files. If counts are equal, it
+keeps the longer folder name (excluding the parent path); an exact tie keeps A.
+Changing the file-detail view preserves your choice. Selecting another pair
+initializes its default again.
+
+**Move other folder to Recycle Bin** first reads every file in both complete
+subtrees without scan filters or cached hashes. The confirmation shows both
+paths and the number of exclusive file occurrences in the folder being removed.
+Confirming also removes exclusive files and empty subfolders from that folder.
+Cancel leaves both folders untouched. A second full inventory checks for content,
+path and empty-directory changes during confirmation. Reference folders, nested
+reference trees, symlinks/reparse points and unreadable entries block removal.
+After a successful move, scan again to refresh all pairs. Generic file-action
+handlers still reject this tool, including stale popup callbacks.
+
+The operation uses the operating system's Recycle Bin and never falls back to
+permanent deletion. Network shares may not support the Recycle Bin; in that case
+an error is shown. Avoid editing either tree while verification is running: the
+checks do not lock the filesystem or create an atomic snapshot.
 
 The compact result list separates **Identical folders**, **One folder fully
 present in the other**, and **Partial matches**. A fully contained result means
@@ -110,8 +128,8 @@ requests, protocol overhead or operating-system read-ahead.
 Corrupt/unsupported caches are ignored with a warning and replaced. Leave
 reuse disabled on SMB/NAS storage with uncertain timestamps or identifiers;
 metadata-preserving changes cannot always be detected by a metadata cache.
-Cache files are excluded from the compared view. Source data is never written or
-explicitly retimestamped; ordinary reads remain subject to filesystem access-time
+Cache files are excluded from the compared view. Scanning never writes or
+explicitly retimestamps source data; ordinary reads remain subject to filesystem access-time
 policy. Only the optional hash cache and an explicitly requested export are
 written.
 
@@ -216,7 +234,7 @@ overall percentage therefore advance independently; they do not estimate network
 throughput or remaining time. Phase changes are reported immediately, with
 frequent throttled file updates within a phase.
 
-No destructive workflow is implemented. If physical file removals are introduced
-later, Immich external libraries may need a rescan; removed entries can enter
+After moving a folder to Recycle Bin, Immich external libraries may need a
+rescan; removed entries can enter
 Immich's trash and thumbnails may persist temporarily. Neither Windows Recycle
 Bin support on SMB nor the Synology recycle-bin configuration may be assumed.

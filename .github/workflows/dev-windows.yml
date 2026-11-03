@@ -20,18 +20,21 @@ jobs:
       contents: write
     env:
       CARGO_TERM_COLOR: always
+      RUSTFLAGS: "-C target-feature=+crt-static -C link-arg=/STACK:8000000"
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@1.94.1
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Format Rust sources
         run: cargo fmt --all
       - name: Test folder comparison and removal
-        run: cargo test --locked -p krokiet connect_duplicate_folders -- --nocapture
+        run: cargo test --locked --release -p krokiet connect_duplicate_folders -- --nocapture
       - name: Check Krokiet
-        run: cargo clippy --locked -p krokiet --all-targets -- -D warnings
+        run: cargo clippy --locked --release -p krokiet --all-targets -- -D warnings
       - name: Build release executable
         run: cargo build --locked --release -p krokiet
       - name: Verify executable starts
@@ -99,13 +102,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: quality-all-features
+          cache-on-failure: true
       - name: Install native dependencies
         run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libraw-dev libheif-dev libavif-dev libdav1d-dev libasound2-dev libfontconfig1-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev clang
       - name: Run required quality gate
         run: just fix
       - name: Save formatter and lint fixes
         if: always()
-        run: git diff --binary > quality-fixes.patch
+        run: |
+          git diff --binary > quality-fixes.patch
+          cat quality-fixes.patch
       - uses: actions/upload-artifact@v6
         if: always()
         with:
