@@ -34,7 +34,7 @@ pub(super) fn connect(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
         let Some(pair) = report.pairs.get(ui.get_selected_pair() as usize) else {
             return;
         };
-        let (keep, remove) = if ui.get_keep_b() {
+        let (keep, remove) = if ui.get_keep_side() == 1 {
             (pair.folder_b, pair.folder_a)
         } else {
             (pair.folder_a, pair.folder_b)

@@ -97,8 +97,7 @@ export component DuplicateFolders inherits VerticalLayout {
                     ComboBox {
                         enabled: !FolderUi.working;
                         model: [Translations.folders_keep_a_text, Translations.folders_keep_b_text];
-                        current-index: FolderUi.keep-b ? 1 : 0;
-                        selected(index) => { FolderUi.keep-b = self.current-index == 1; }
+                        current-index <=> FolderUi.keep-side;
                     }
                     Button {
                         enabled: !FolderUi.working;

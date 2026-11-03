@@ -73,6 +73,7 @@ fn folder_scan_updates_real_slint_models_and_blocks_deletion() {
                 assert!(row.path_a.contains(&reference) || row.path_b.contains(&reference));
                 assert_eq!(ui.get_selected_pair(), row.pair_index);
                 assert_eq!(ui.get_selected().state, row.state);
+                assert_eq!(ui.get_keep_side(), 0);
                 assert!(row.state == crate::flk!("folders_contained_a") || row.state == crate::flk!("folders_contained_b"));
                 phase_copy.set(1);
             }
@@ -96,6 +97,7 @@ fn folder_scan_updates_real_slint_models_and_blocks_deletion() {
                 app.global::<Callabler>().invoke_folders_filter_results(2);
                 assert_eq!(ui.get_pairs().row_count(), 1);
                 assert_eq!(ui.get_selected_pair(), 0);
+                ui.set_keep_side(1);
                 app.global::<Callabler>().invoke_folders_show_details(0, 1);
                 app.global::<Callabler>().invoke_folders_show_details(0, 2);
                 app.global::<Callabler>().invoke_folders_show_details(0, 0);
@@ -104,6 +106,7 @@ fn folder_scan_updates_real_slint_models_and_blocks_deletion() {
             2 if !ui.get_detail_loading() => {
                 assert_eq!(ui.get_details().row_count(), 2);
                 assert_eq!(ui.get_detail_kind(), 0);
+                assert_eq!(ui.get_keep_side(), 1);
                 if let Ok(path) = std::env::var("CZKAWKA_FOLDER_SCREENSHOT") {
                     let snapshot = app.window().take_snapshot().unwrap();
                     image::save_buffer(path, snapshot.as_bytes(), snapshot.width(), snapshot.height(), image::ColorType::Rgba8).unwrap();

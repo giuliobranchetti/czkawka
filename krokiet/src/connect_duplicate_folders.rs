@@ -201,7 +201,7 @@ fn connect_details(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
         let shared = Arc::clone(&shared);
         let ui = app.global::<FolderUi>();
         if ui.get_selected_pair() != idx {
-            ui.set_keep_b(removal::prefer_b(&report.folders[pair.folder_a], &report.folders[pair.folder_b]));
+            ui.set_keep_side(i32::from(removal::prefer_b(&report.folders[pair.folder_a], &report.folders[pair.folder_b])));
         }
         ui.set_selected_pair(idx);
         ui.set_selected(pair_row(&report, &pair, idx as usize));
