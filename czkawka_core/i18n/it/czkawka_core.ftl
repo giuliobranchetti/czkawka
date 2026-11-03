@@ -112,8 +112,8 @@ stage_scanning_size_name = Scansione di dimensione e nome di { $entries_checked 
 stage_scanning_size = Scansione delle dimensioni di { $entries_checked } file
 # Cache load/save (indeterminate, no counters)
 stage_filtering_outdated_cache = Filtraggio voci cache obsolete
-stage_loading_prehash_cache = Caricamento della cache prehash
-stage_saving_prehash_cache = Salvataggio della cache prehash
+stage_loading_prehash_cache = Caricamento della cache degli hash parziali
+stage_saving_prehash_cache = Salvataggio della cache degli hash parziali
 stage_loading_hash_cache = Caricamento della cache hash
 stage_saving_hash_cache = Salvataggio della cache hash
 stage_loading_tags_cache = Caricamento tag cache
