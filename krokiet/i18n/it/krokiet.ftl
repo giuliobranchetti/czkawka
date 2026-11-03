@@ -495,7 +495,7 @@ context_menu_copy_full_path_text = Copia Percorso Completo
 context_menu_rename_text = Rinomina
 
 tool_duplicate_folders = Cartelle duplicate
-folders_scope = Confronta il contenuto dei file, anche se hanno nomi diversi. Questo strumento non elimina e non sposta file.
+folders_scope = Confronta il contenuto dei file, anche se hanno nomi diversi. Scegli quale cartella mantenere prima di spostare l'altra nel Cestino.
 folders_exact = Solo identiche al 100%
 folders_coverage = File comuni minimi nella cartella più piccola (%)
 folders_minimum_files = File minimi per cartella
@@ -548,3 +548,18 @@ folders_common_count = { $count } file comuni | { $bytes }
 folders_result_count = { $shown } / { $total } coppie
 folders_categories = Identiche: { $exact } | Interamente contenute: { $contained } | Parziali: { $partial }
 folders_rules = Nomi e struttura delle cartelle non vengono confrontati. Si applicano le esclusioni e i filtri sulle estensioni, ma non i limiti di dimensione dei singoli file. Si omettono le cartelle vuote e le coppie tra una cartella e una sua sottocartella.
+
+folders_keep_a = Mantieni A ed elimina B
+folders_keep_b = Mantieni B ed elimina A
+folders_remove_other = Sposta l'altra cartella nel Cestino
+folders_remove_reference = Le cartelle di riferimento non possono essere eliminate. Scegli di mantenere la cartella di riferimento.
+folders_remove_nested = Non è possibile eliminare cartelle identiche o annidate.
+folders_remove_incomplete = Impossibile verificare tutti i file. Controlla i permessi, i collegamenti simbolici e gli avvisi della scansione, poi riprova.
+folders_remove_changed = Il contenuto delle cartelle è cambiato durante la conferma. Non è stato eliminato nulla. Ripeti la scansione.
+folders_remove_done = Cartella spostata nel Cestino. Ripeti la scansione per aggiornare i risultati.
+folders_remove_confirm = Mantieni: { $keep }
+    Sposta nel Cestino: { $remove }
+    Cartella mantenuta: { $kept } file. Cartella da eliminare: { $files } file.
+    ATTENZIONE: { $exclusive } file nella cartella da eliminare non hanno una copia corrispondente nella cartella mantenuta (comprese le copie aggiuntive dello stesso contenuto).
+    Il controllo include tutte le sottocartelle e ignora i filtri della scansione. Conferma per spostare l'intera cartella nel Cestino, inclusi i file esclusivi e le sottocartelle vuote.
+folders_remove_busy = Attendi il completamento dell'operazione sulle cartelle.
