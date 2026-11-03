@@ -510,7 +510,7 @@ context_menu_rename_text = Rename
 
 
 tool_duplicate_folders = Duplicate Folders
-folders_scope = Compare file contents, even when names differ. This tool does not delete or move files.
+folders_scope = Compare file contents, even when names differ. Choose which folder to keep before moving the other to Recycle Bin.
 folders_exact = 100% identical only
 folders_coverage = Minimum shared files in the smaller folder (%)
 folders_minimum_files = Minimum files per folder
@@ -563,3 +563,19 @@ folders_common_count = { $count } common files | { $bytes }
 folders_result_count = { $shown } / { $total } pairs
 folders_categories = Identical: { $exact } | Fully contained: { $contained } | Partial: { $partial }
 folders_rules = Names and directory structure are ignored. Exclusions and extension filters apply; individual file-size limits do not. Empty folders and parent/child pairs are omitted.
+
+folders_keep_a = Keep A, remove B
+folders_keep_b = Keep B, remove A
+folders_remove_other = Move other folder to Recycle Bin
+folders_remove_reference = Reference folders cannot be removed. Choose to keep the reference folder.
+folders_remove_nested = Cannot remove identical or nested folders.
+folders_remove_incomplete = Cannot verify every file. Check permissions, symbolic links, and scan warnings before trying again.
+folders_remove_changed = The folder contents changed during confirmation. Nothing was removed. Scan again.
+folders_remove_done = Folder moved to Recycle Bin. Scan again to refresh the results.
+folders_remove_confirm = Keep: { $keep }
+    Move to Recycle Bin: { $remove }
+    Kept folder: { $kept } files. Removed folder: { $files } files.
+    WARNING: { $exclusive } files in the removed folder have no matching copy in the kept folder (including extra copies of the same content).
+    The check includes all subfolders and ignores scan filters. Confirm to move the entire folder to Recycle Bin, including exclusive files and empty subfolders.
+
+folders_remove_busy = Wait for the folder operation to finish.

@@ -1,3 +1,4 @@
+import { FolderUi } from "../globals/duplicate_folders.slint";
 import { Button } from "std-widgets.slint";
 import { ActiveTab, BottomPanelVisibility, PopupRequest, SingleMainListModel } from "../globals/common.slint";
 import { GuiState } from "../globals/gui_state.slint";
@@ -89,7 +90,7 @@ export component ActionButtons inherits HorizontalLayout {
 
     if (!scanning && !processing && lists_enabled): scan_button :=  Button {
         height: parent.height;
-        enabled: !scanning && !processing && lists_enabled;
+        enabled: !scanning && !processing && !FolderUi.working && lists_enabled;
         text: Settings.show_only_icons ? "" : Translations.scan_button_text;
         icon: @image-url("../../icons/krokiet_search.svg");
         colorize-icon: true;

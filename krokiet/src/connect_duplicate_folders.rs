@@ -17,6 +17,7 @@ use crate::shared_models::SharedModels;
 use crate::{Callabler, FolderDetailRow, FolderPairRow, FolderUi, GuiState, MainWindow, ProgressToSend, Settings, flk};
 
 mod presentation;
+mod removal;
 
 const DETAIL_LIMIT: usize = 20_000;
 
@@ -24,6 +25,10 @@ const DETAIL_LIMIT: usize = 20_000;
 mod gui_test;
 
 pub(crate) fn start_scan(app: &MainWindow, stop: Arc<AtomicBool>, shared: Arc<Mutex<SharedModels>>) {
+    if app.global::<FolderUi>().get_working() {
+        app.invoke_scan_ended(flk!("folders_remove_busy").into());
+        return;
+    }
     if !check_if_there_are_any_included_folders(app) {
         app.invoke_scan_ended(flk!("rust_no_included_paths").into());
         return;
@@ -159,6 +164,7 @@ pub(crate) fn connect(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
     connect_filter(app, shared);
     connect_open(app, shared);
     connect_export(app, shared);
+    removal::connect(app, shared);
 }
 
 fn connect_filter(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
@@ -166,7 +172,7 @@ fn connect_filter(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
     let shared = Arc::clone(shared);
     app.global::<Callabler>().on_folders_filter_results(move |filter| {
         let app = weak.upgrade().expect("Folder filter callback requires a live window");
-        if app.get_scanning() {
+        if app.get_scanning() || app.global::<FolderUi>().get_working() {
             return;
         }
         let report = shared.lock().expect("Folder scan state mutex poisoned").duplicate_folders_report.clone();
@@ -181,7 +187,7 @@ fn connect_details(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
     let shared = Arc::clone(shared);
     app.global::<Callabler>().on_folders_show_details(move |idx, kind| {
         let app = weak.upgrade().expect("Folder details callback requires a live window");
-        if app.get_scanning() {
+        if app.get_scanning() || app.global::<FolderUi>().get_working() {
             return;
         }
         let models = shared.lock().expect("Folder scan state mutex poisoned");
@@ -194,6 +200,9 @@ fn connect_details(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
         let weak = weak.clone();
         let shared = Arc::clone(&shared);
         let ui = app.global::<FolderUi>();
+        if ui.get_selected_pair() != idx {
+            ui.set_keep_b(removal::prefer_b(&report.folders[pair.folder_a], &report.folders[pair.folder_b]));
+        }
         ui.set_selected_pair(idx);
         ui.set_selected(pair_row(&report, &pair, idx as usize));
         ui.set_detail_kind(kind);
@@ -279,7 +288,7 @@ fn connect_export(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
     let shared = Arc::clone(shared);
     app.global::<Callabler>().on_folders_export(move || {
         let app = weak.upgrade().expect("Folder export callback requires a live window");
-        if app.get_scanning() {
+        if app.get_scanning() || app.global::<FolderUi>().get_working() {
             return;
         }
         let Some(report) = shared.lock().expect("Folder scan state mutex poisoned").duplicate_folders_report.clone() else {

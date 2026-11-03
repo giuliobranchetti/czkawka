@@ -113,6 +113,9 @@ fn translate_items(app: &MainWindow) {
     translation.set_ref_text(flk!("ref").into());
     translation.set_path_text(flk!("path").into());
     translation.set_tool_duplicate_folders_text(flk!("tool_duplicate_folders").into());
+    translation.set_folders_keep_a_text(flk!("folders_keep_a").into());
+    translation.set_folders_keep_b_text(flk!("folders_keep_b").into());
+    translation.set_folders_remove_other_text(flk!("folders_remove_other").into());
     translation.set_folders_advanced_text(flk!("folders_advanced").into());
     translation.set_folders_threshold_help_text(flk!("folders_threshold_help").into());
     translation.set_folders_filter_all_text(flk!("folders_filter_all").into());

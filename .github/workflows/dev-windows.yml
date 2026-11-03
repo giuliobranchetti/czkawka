@@ -1,0 +1,111 @@
+name: Dev Windows executable
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-windows
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.94.1
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Format Rust sources
+        run: cargo fmt --all
+      - name: Test folder comparison and removal
+        run: cargo test --locked -p krokiet connect_duplicate_folders -- --nocapture
+      - name: Check Krokiet
+        run: cargo clippy --locked -p krokiet --all-targets -- -D warnings
+      - name: Build release executable
+        run: cargo build --locked --release -p krokiet
+      - name: Verify executable starts
+        shell: pwsh
+        run: |
+          $process = Start-Process target/release/krokiet.exe -PassThru -RedirectStandardError smoke-stderr.txt -RedirectStandardOutput smoke-stdout.txt
+          Start-Sleep -Seconds 10
+          if ($process.HasExited) {
+            Get-Content smoke-stderr.txt
+            throw "Krokiet exited during startup with code $($process.ExitCode)"
+          }
+          Stop-Process -Id $process.Id
+      - name: Package portable application
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path package
+          Copy-Item target/release/krokiet.exe package/krokiet.exe
+          Copy-Item LICENSE_MIT_EVERYTHING_OUTSIDE_ANY_CARGO_APP_LIBRARY package/LICENSE.txt
+          @"
+          Krokiet for Windows x64
+          Source commit: ${{ github.sha }}
+          Extract this ZIP into a folder, then double-click krokiet.exe.
+          Duplicate Folders: choose Keep A or Keep B, then move the other folder to Recycle Bin.
+          The default keeps more scanned files, then the longer folder name.
+          Review both paths and the exclusive-file count before confirming.
+          A Recycle Bin error leaves the operation failed; permanent deletion is never used as a fallback.
+          "@ | Set-Content package/README.txt
+          Compress-Archive -Path package/* -DestinationPath krokiet-windows-x64-dev.zip
+          (Get-FileHash krokiet-windows-x64-dev.zip -Algorithm SHA256).Hash.ToLower() + '  krokiet-windows-x64-dev.zip' | Set-Content SHA256SUMS.txt
+      - uses: actions/upload-artifact@v6
+        with:
+          name: krokiet-windows-x64-dev-${{ github.sha }}
+          path: |
+            krokiet-windows-x64-dev.zip
+            SHA256SUMS.txt
+          if-no-files-found: error
+      - name: Publish downloadable executable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          gh release view dev-windows --repo ${{ github.repository }} 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create dev-windows --repo ${{ github.repository }} --target '${{ github.sha }}' --title 'Windows dev build' --prerelease --notes 'Portable Windows x64 build from dev. See the README inside the ZIP for the exact source commit.'
+            if ($LASTEXITCODE -ne 0) { throw 'Could not create release' }
+          }
+          gh release upload dev-windows krokiet-windows-x64-dev.zip SHA256SUMS.txt --repo ${{ github.repository }} --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Could not upload executable' }
+
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@1.94.1
+        with:
+          components: rustfmt, clippy
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+      - uses: extractions/setup-just@v3
+      - uses: astral-sh/setup-uv@v7
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: quality-all-features
+      - name: Install native dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgtk-4-dev libraw-dev libheif-dev libavif-dev libdav1d-dev libasound2-dev libfontconfig1-dev libxkbcommon-dev libwayland-dev libegl1-mesa-dev clang
+      - name: Run required quality gate
+        run: just fix
+      - name: Save formatter and lint fixes
+        if: always()
+        run: git diff --binary > quality-fixes.patch
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: quality-fixes-${{ github.sha }}
+          path: quality-fixes.patch

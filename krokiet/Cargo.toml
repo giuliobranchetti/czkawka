@@ -11,6 +11,7 @@ repository = "https://github.com/qarmin/czkawka"
 build = "build.rs"
 
 [dependencies]
+blake3 = "1.5"
 czkawka_core = { version = "12.0.2", path = "../czkawka_core" }
 chrono = "0.4.38"
 open = "5.3"
