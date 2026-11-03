@@ -14,9 +14,7 @@ use crate::shared_models::SharedModels;
 use crate::{Callabler, FolderUi, MainWindow, flk};
 
 pub(super) fn prefer_b(a: &FolderSummary, b: &FolderSummary) -> bool {
-    let rank = |folder: &FolderSummary| {
-        (folder.file_count, folder.path.file_name().unwrap_or_default().to_string_lossy().chars().count())
-    };
+    let rank = |folder: &FolderSummary| (folder.file_count, folder.path.file_name().unwrap_or_default().to_string_lossy().chars().count());
     rank(b) > rank(a)
 }
 
@@ -36,7 +34,11 @@ pub(super) fn connect(app: &MainWindow, shared: &Arc<Mutex<SharedModels>>) {
         let Some(pair) = report.pairs.get(ui.get_selected_pair() as usize) else {
             return;
         };
-        let (keep, remove) = if ui.get_keep_b() { (pair.folder_b, pair.folder_a) } else { (pair.folder_a, pair.folder_b) };
+        let (keep, remove) = if ui.get_keep_b() {
+            (pair.folder_b, pair.folder_a)
+        } else {
+            (pair.folder_a, pair.folder_b)
+        };
         let keep = report.folders[keep].path.clone();
         let removed = &report.folders[remove];
         if removed.reference || report.folders.iter().any(|folder| folder.reference && folder.path.starts_with(&removed.path)) {
@@ -88,8 +90,14 @@ fn remove_with_confirmation(keep_path: &Path, remove_path: &Path) -> Result<bool
     }
     let before = (inventory(&keep)?, inventory(&remove)?);
     let exclusive = exclusive_count(&before.0, &before.1);
-    let description = flk!("folders_remove_confirm", keep = display_path(&keep), remove = display_path(&remove),
-        exclusive = exclusive, files = before.1.values().flatten().count(), kept = before.0.values().flatten().count());
+    let description = flk!(
+        "folders_remove_confirm",
+        keep = display_path(&keep),
+        remove = display_path(&remove),
+        exclusive = exclusive,
+        files = before.1.values().flatten().count(),
+        kept = before.0.values().flatten().count()
+    );
     let confirmed = rfd::MessageDialog::new()
         .set_title(flk!("folders_remove_other"))
         .set_description(description)
@@ -167,8 +175,12 @@ fn inventory(root: &Path) -> Result<Inventory, String> {
                 size += read as u64;
             }
             let after = fs::symlink_metadata(&path).map_err(contextual)?;
-            if is_link(&after) || !after.is_file() || size != metadata.len() || after.len() != metadata.len()
-                || after.modified().map_err(contextual)? != metadata.modified().map_err(contextual)? {
+            if is_link(&after)
+                || !after.is_file()
+                || size != metadata.len()
+                || after.len() != metadata.len()
+                || after.modified().map_err(contextual)? != metadata.modified().map_err(contextual)?
+            {
                 return Err(flk!("folders_remove_changed"));
             }
             entries.insert(path, Some((size, *hasher.finalize().as_bytes())));
@@ -181,16 +193,19 @@ fn inventory(root: &Path) -> Result<Inventory, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Inventory, exclusive_count, inventory, prefer_b};
     use std::fs;
     use std::path::PathBuf;
+
     use czkawka_core::tools::duplicate_folders::FolderSummary;
+
+    use super::{Inventory, exclusive_count, inventory, prefer_b};
 
     fn folder(path: &str, file_count: usize) -> FolderSummary {
         serde_json::from_value(serde_json::json!({
             "path": path, "file_count": file_count, "total_bytes": 0,
             "complete": true, "reference": false, "file_indices": []
-        })).unwrap()
+        }))
+        .unwrap()
     }
 
     #[test]
@@ -234,8 +249,7 @@ mod tests {
         let root = std::env::temp_dir().join(format!("folder-removal-link-{}", std::process::id()));
         fs::create_dir_all(&root).unwrap();
         std::os::unix::fs::symlink(&root, root.join("loop")).unwrap();
-        assert!(inventory(&root).is_err());
+        inventory(&root).unwrap_err();
         fs::remove_dir_all(root).unwrap();
     }
-
 }

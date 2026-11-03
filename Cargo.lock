@@ -4549,8 +4549,8 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 name = "krokiet"
 version = "12.0.2"
 dependencies = [
- "blake3",
  "arboard",
+ "blake3",
  "chrono",
  "crossbeam-channel",
  "czkawka_core",
