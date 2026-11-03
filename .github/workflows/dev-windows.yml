@@ -36,6 +36,7 @@ jobs:
       - name: Test folder interface and selection state
         env:
           SLINT_BACKEND: winit-software
+          RUST_MIN_STACK: 33554432
         run: cargo --config 'profile.release.package.krokiet.opt-level=1' test --locked --release -p krokiet folder_scan_updates_real_slint_models_and_blocks_deletion -- --ignored --test-threads=1
       - name: Check Krokiet
         run: cargo --config 'profile.release.package.krokiet.opt-level=1' clippy --locked --release -p krokiet --all-targets -- -D warnings
