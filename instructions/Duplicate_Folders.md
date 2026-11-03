@@ -25,7 +25,7 @@ The reference checkbox marks a directory to retain. Reference directories remain
 visible in comparisons, including when every included directory is a reference.
 The selected pair has a dedicated **Keep A, remove B / Keep B, remove A** choice.
 The default keeps the folder with more scanned files. If counts are equal, it
-keeps the longer folder name (excluding the parent path); an exact tie keeps A.
+keeps the longer full displayed path, including parent folders; an exact tie keeps A.
 Changing the file-detail view preserves your choice. Selecting another pair
 initializes its default again.
 

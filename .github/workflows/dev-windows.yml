@@ -65,7 +65,7 @@ jobs:
           Source commit: ${{ github.sha }}
           Extract this ZIP into a folder, then double-click krokiet.exe.
           Duplicate Folders: choose Keep A or Keep B, then move the other folder to Recycle Bin.
-          The default keeps more scanned files, then the longer folder name.
+          The default keeps more scanned files, then the longer full path (including parent folders).
           Review both paths and the exclusive-file count before confirming.
           A Recycle Bin error leaves the operation failed; permanent deletion is never used as a fallback.
           "@ | Set-Content package/README.txt

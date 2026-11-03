@@ -14,7 +14,7 @@ use crate::shared_models::SharedModels;
 use crate::{Callabler, FolderUi, MainWindow, flk};
 
 pub(super) fn prefer_b(a: &FolderSummary, b: &FolderSummary) -> bool {
-    let rank = |folder: &FolderSummary| (folder.file_count, folder.path.file_name().unwrap_or_default().to_string_lossy().chars().count());
+    let rank = |folder: &FolderSummary| (folder.file_count, display_path(&folder.path).chars().count());
     rank(b) > rank(a)
 }
 
@@ -209,10 +209,23 @@ mod tests {
     }
 
     #[test]
-    fn chooses_file_count_before_name_length() {
+    fn chooses_file_count_before_full_path_length() {
         assert!(!prefer_b(&folder("short", 3), &folder("longer-name", 2)));
         assert!(prefer_b(&folder("short", 2), &folder("longer-name", 2)));
         assert!(!prefer_b(&folder("abc", 2), &folder("xyz", 2)));
+    }
+
+    #[test]
+    fn keeps_the_longer_parent_path_for_identically_named_subfolders() {
+        let a = folder(r"\\griciglianas\giulio\foto\viaggi\2019 cefalonia\spasmata beach", 26);
+        let b = folder(r"\\griciglianas\giulio\foto\viaggi\2019-07 cefalonia\spasmata beach", 26);
+        assert!(prefer_b(&a, &b));
+        assert!(!prefer_b(&b, &a));
+    }
+
+    #[test]
+    fn compares_display_paths_without_windows_namespace_prefixes() {
+        assert!(!prefer_b(&folder(r"C:\photos\album", 2), &folder(r"\\?\C:\photos\album", 2)));
     }
 
     #[test]
