@@ -33,11 +33,17 @@ jobs:
         run: cargo fmt --all
       - name: Test folder comparison and removal
         run: cargo test --locked --release -p krokiet connect_duplicate_folders -- --nocapture
+      - name: Test folder interface and selection state
+        env:
+          SLINT_BACKEND: winit-software
+        run: cargo test --locked --release -p krokiet folder_scan_updates_real_slint_models_and_blocks_deletion -- --ignored --test-threads=1
       - name: Check Krokiet
         run: cargo clippy --locked --release -p krokiet --all-targets -- -D warnings
       - name: Build release executable
         run: cargo build --locked --release -p krokiet
       - name: Verify executable starts
+        env:
+          SLINT_BACKEND: winit-software
         shell: pwsh
         run: |
           $process = Start-Process target/release/krokiet.exe -PassThru -RedirectStandardError smoke-stderr.txt -RedirectStandardOutput smoke-stdout.txt

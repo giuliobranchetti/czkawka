@@ -172,6 +172,7 @@ mod tests {
         let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos();
         let root = std::env::temp_dir().join(format!("folder-presentation-{}-{stamp}", std::process::id()));
         std::fs::create_dir(&root).unwrap();
+        let root = std::fs::canonicalize(root).unwrap();
         for name in ["a", "b", "c", "d", "e"] {
             std::fs::create_dir(root.join(name)).unwrap();
         }
