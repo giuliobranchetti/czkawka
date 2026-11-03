@@ -92,6 +92,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
+      - name: Select stable for clippy
+        run: rustup default 1.94.1
       - uses: extractions/setup-just@v3
       - uses: astral-sh/setup-uv@v7
       - uses: Swatinem/rust-cache@v2
